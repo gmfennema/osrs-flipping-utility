@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSRS GE Volume Analyzer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script
+        src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>OSRS Market <span class="highlight">Pulse</span></h1>
+            <p class="subtitle">Real-time Volume Analysis</p>
+            <div class="search-container">
+                <input type="text" id="item-search" placeholder="Search for an item..." autocomplete="off">
+                <div id="search-results" class="search-results"></div>
+            </div>
+        </header>
+
+        <nav class="main-nav">
+            <button class="nav-btn active" data-tab="analyzer">Market Analyzer</button>
+            <button class="nav-btn" data-tab="flipper">F2P Flip Finder</button>
+        </nav>
+
+        <main>
+            <!-- Analyzer Tab -->
+            <div id="analyzer-view" class="view-section active">
+                <div class="card glass-panel">
+                    <div class="card-header">
+                        <div class="item-info">
+                            <img id="item-icon" src="https://oldschool.runescape.wiki/images/Mithril_arrow.png?e94df"
+                                alt="Mithril arrow">
+                            <h2 id="item-name">Mithril Arrows</h2>
+                        </div>
+                        <div class="controls">
+                            <div class="view-toggle">
+                                <span class="toggle-label">Timeline</span>
+                                <label class="switch">
+                                    <input type="checkbox" id="mode-toggle">
+                                    <span class="slider round"></span>
+                                </label>
+                                <span class="toggle-label">Time of Day</span>
+                            </div>
+                            <div class="time-ranges">
+                                <button class="range-btn active" data-range="24h">24h</button>
+                                <button class="range-btn" data-range="7d">7d</button>
+                                <button class="range-btn" data-range="30d">30d</button>
+                                <button class="range-btn" data-range="ytd">YTD</button>
+                            </div>
+                            <div class="status-indicator">
+                                <span class="dot"></span> Live Data
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <span class="stat-label">Target Sell Price</span>
+                            <span class="stat-value" id="stat-high">--</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Target Buy Price</span>
+                            <span class="stat-value" id="stat-low">--</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Margin</span>
+                            <span class="stat-value highlight" id="stat-margin">--</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">ROI</span>
+                            <span class="stat-value" id="stat-roi">--</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">12h Trend</span>
+                            <span class="stat-value" id="stat-trend">--</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">GE Limit</span>
+                            <span class="stat-value" id="stat-limit">--</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">7d Avg Vol</span>
+                            <span class="stat-value" id="stat-avg-vol">--</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">30d Avg Vol</span>
+                            <span class="stat-value" id="stat-avg-30d">--</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Consistency</span>
+                            <span class="stat-value" id="stat-consistency">--</span>
+                        </div>
+                    </div>
+
+                    <!-- AI Trade Advice Card -->
+                    <div class="ai-advice-card">
+                        <div class="ai-header">
+                            <span class="ai-icon">✨</span>
+                            <h3>AI Trend Spotter</h3>
+                        </div>
+                        <p id="ai-reasoning">Analyzing market data...</p>
+                        <div class="ai-score-badge" id="ai-score-display">Score: --</div>
+                    </div>
+
+                    <div class="chart-container">
+                        <canvas id="volumeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flip Finder Tab -->
+            <div id="flipper-view" class="view-section" style="display: none;">
+                <div class="card glass-panel">
+                    <div class="card-header">
+                        <h2>Top F2P Flips</h2>
+                        <p class="subtitle">High volume, non-member items with potential margins</p>
+                    </div>
+
+                    <div class="filters">
+                        <div class="filter-group">
+                            <label>Min Volume (24h)</label>
+                            <input type="number" id="filter-volume" placeholder="e.g. 10000" value="1000">
+                        </div>
+                        <div class="filter-group">
+                            <label>Min ROI %</label>
+                            <input type="number" id="filter-roi" placeholder="e.g. 1" value="0.5">
+                        </div>
+                        <div class="filter-group">
+                            <label>Min Margin</label>
+                            <input type="number" id="filter-margin" placeholder="e.g. 5" value="1">
+                        </div>
+                        <div class="filter-group">
+                            <label>Min Limit</label>
+                            <input type="number" id="filter-limit" placeholder="e.g. 100" value="0">
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <table id="flip-table">
+                            <thead>
+                                <tr>
+                                    <th data-sort="name">Item</th>
+                                    <th data-sort="score">AI Score ✨</th>
+                                    <th data-sort="limit">Limit</th>
+                                    <th data-sort="high">Target Sell</th>
+                                    <th data-sort="low">Target Buy</th>
+                                    <th data-sort="margin">Margin</th>
+                                    <th data-sort="roi">ROI</th>
+                                    <th data-sort="volume">Volume (24h)</th>
+                                    <th data-sort="vol1h">Vol (1h)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Powered by <a href="https://runescape.wiki/w/Application_programming_interface" target="_blank">OSRS Wiki
+                    API</a></p>
+        </footer>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>
