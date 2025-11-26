@@ -390,26 +390,31 @@ async function updateChart() {
                     borderWidth: 2,
                     fill: true,
                     yAxisID: 'y',
+                    tension: 0.4, // Smooth curves
                     order: 2
                 },
                 {
                     label: 'Target Sell',
                     data: chartData.map(d => ({ x: d.x, y: d.priceHigh })),
                     borderColor: '#4ade80',
-                    borderWidth: 2,
-                    borderDash: [5, 5],
+                    borderWidth: 1.5, // Thinner, solid line
                     pointRadius: 0,
                     yAxisID: 'y1',
+                    tension: 0.4,
+                    fill: {
+                        target: '+1', // Fill to the next dataset (Target Buy)
+                        above: 'rgba(74, 222, 128, 0.1)' // Green glow for profit zone
+                    },
                     order: 1
                 },
                 {
                     label: 'Target Buy',
                     data: chartData.map(d => ({ x: d.x, y: d.priceLow })),
                     borderColor: '#f472b6',
-                    borderWidth: 2,
-                    borderDash: [5, 5],
+                    borderWidth: 1.5, // Thinner, solid line
                     pointRadius: 0,
                     yAxisID: 'y1',
+                    tension: 0.4,
                     order: 1
                 }
             ]
@@ -423,12 +428,13 @@ async function updateChart() {
             },
             plugins: {
                 tooltip: {
-                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
                     titleColor: '#f8fafc',
                     bodyColor: '#94a3b8',
                     borderColor: 'rgba(255, 255, 255, 0.1)',
                     borderWidth: 1,
                     padding: 12,
+                    displayColors: true,
                     callbacks: {
                         label: function (context) {
                             let label = context.dataset.label || '';
@@ -448,6 +454,34 @@ async function updateChart() {
                             return date.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
                         }
                     }
+                },
+                legend: {
+                    labels: {
+                        color: '#94a3b8',
+                        font: {
+                            family: "'Outfit', sans-serif",
+                            size: 12
+                        },
+                        usePointStyle: true,
+                        pointStyle: 'circle'
+                    },
+                    onClick: function (e, legendItem, legend) {
+                        const index = legendItem.datasetIndex;
+                        const ci = legend.chart;
+                        if (ci.isDatasetVisible(index)) {
+                            ci.hide(index);
+                            legendItem.hidden = true;
+                        } else {
+                            ci.show(index);
+                            legendItem.hidden = false;
+                        }
+
+                        // Dynamic Axis Visibility
+                        const isVolumeVisible = ci.isDatasetVisible(0); // Volume is index 0
+                        ci.options.scales.y.display = isVolumeVisible;
+
+                        ci.update();
+                    }
                 }
             },
             scales: {
@@ -458,21 +492,43 @@ async function updateChart() {
                         displayFormats: displayFormat,
                         tooltipFormat: 'MMM d, h:mm a'
                     },
-                    grid: { display: false }
+                    grid: { display: false },
+                    ticks: {
+                        color: '#64748b'
+                    }
                 },
                 y: {
                     type: 'linear',
                     display: true,
                     position: 'left',
                     title: { display: true, text: 'Volume', color: '#38bdf8' },
-                    grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                    grid: { color: 'rgba(255, 255, 255, 0.03)' },
+                    beginAtZero: true,
+                    grace: '5%',
+                    ticks: {
+                        color: '#64748b',
+                        callback: function (value) {
+                            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+                            if (value >= 1000) return (value / 1000).toFixed(0) + 'k';
+                            return value;
+                        }
+                    }
                 },
                 y1: {
                     type: 'linear',
                     display: true,
                     position: 'right',
                     title: { display: true, text: 'Price (GP)', color: '#4ade80' },
-                    grid: { drawOnChartArea: false }
+                    grid: { drawOnChartArea: false },
+                    grace: '5%',
+                    ticks: {
+                        color: '#64748b',
+                        callback: function (value) {
+                            if (value >= 1000000) return (value / 1000000).toFixed(2) + 'M';
+                            if (value >= 1000) return (value / 1000).toFixed(0) + 'k';
+                            return value;
+                        }
+                    }
                 }
             }
         }
