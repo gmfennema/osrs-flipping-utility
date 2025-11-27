@@ -28,6 +28,7 @@
         <nav class="main-nav">
             <button class="nav-btn active" data-tab="analyzer">Market Analyzer</button>
             <button class="nav-btn" data-tab="flipper">F2P Flip Finder</button>
+            <button class="nav-btn" data-tab="type-analysis">Type Analysis</button>
         </nav>
 
         <main>
@@ -161,6 +162,65 @@
                             <tbody>
                                 <!-- Populated by JS -->
                             </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Type Analysis Tab -->
+            <div id="type-analysis-view" class="view-section" style="display: none;">
+                <div class="card glass-panel">
+                    <div class="card-header">
+                        <div>
+                            <h2>Item Type Analysis</h2>
+                            <p class="subtitle">Analyze trends for groups of items (e.g., "rune", "potion")</p>
+                        </div>
+                        <div class="controls">
+                            <div class="time-ranges">
+                                <button class="range-btn active" data-range="24h">24h</button>
+                                <button class="range-btn" data-range="7d">7d</button>
+                                <button class="range-btn" data-range="30d">30d</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="search-container"
+                        style="margin: 0 0 2rem 0; max-width: 100%; display: flex; gap: 0.5rem;">
+                        <input type="text" id="type-search" placeholder="Enter item type (e.g. 'sword', 'rune')..."
+                            autocomplete="off" style="flex: 1;">
+                        <button id="type-search-btn" class="nav-btn active" style="padding: 0 1.5rem;">Search</button>
+                    </div>
+
+                    <div id="type-stats" class="stats-grid" style="display: none;">
+                        <div class="stat-card">
+                            <span class="stat-label">Total Volume</span>
+                            <span class="stat-value" id="type-total-vol">--</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Avg Price</span>
+                            <span class="stat-value" id="type-avg-price">--</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Active Items</span>
+                            <span class="stat-value" id="type-item-count">--</span>
+                        </div>
+                    </div>
+
+                    <div class="chart-container">
+                        <canvas id="typeChart"></canvas>
+                    </div>
+
+                    <div class="table-container" style="margin-top: 2rem;">
+                        <h3>Top Contributors</h3>
+                        <table id="type-table">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Price</th>
+                                    <th>Volume Contribution</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
                         </table>
                     </div>
                 </div>

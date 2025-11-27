@@ -378,6 +378,10 @@ async function updateChart() {
 
     let volLabel = viewMode === 'time-of-day' ? 'Avg Volume' : 'Volume';
 
+    const isMobile = window.innerWidth < 768;
+    const fontSize = isMobile ? 10 : 12;
+    const tooltipPadding = isMobile ? 8 : 12;
+
     chartInstance = new Chart(ctx, {
         type: 'line',
         data: {
@@ -433,8 +437,10 @@ async function updateChart() {
                     bodyColor: '#94a3b8',
                     borderColor: 'rgba(255, 255, 255, 0.1)',
                     borderWidth: 1,
-                    padding: 12,
+                    padding: tooltipPadding,
                     displayColors: true,
+                    titleFont: { size: fontSize + 2 },
+                    bodyFont: { size: fontSize },
                     callbacks: {
                         label: function (context) {
                             let label = context.dataset.label || '';
@@ -460,8 +466,9 @@ async function updateChart() {
                         color: '#94a3b8',
                         font: {
                             family: "'Outfit', sans-serif",
-                            size: 12
+                            size: fontSize
                         },
+                        boxWidth: isMobile ? 8 : 12,
                         usePointStyle: true,
                         pointStyle: 'circle'
                     },
@@ -494,19 +501,21 @@ async function updateChart() {
                     },
                     grid: { display: false },
                     ticks: {
-                        color: '#64748b'
+                        color: '#64748b',
+                        font: { size: fontSize }
                     }
                 },
                 y: {
                     type: 'linear',
                     display: true,
                     position: 'left',
-                    title: { display: true, text: 'Volume', color: '#38bdf8' },
+                    title: { display: !isMobile, text: 'Volume', color: '#38bdf8', font: { size: fontSize } },
                     grid: { color: 'rgba(255, 255, 255, 0.03)' },
                     beginAtZero: true,
                     grace: '5%',
                     ticks: {
                         color: '#64748b',
+                        font: { size: fontSize },
                         callback: function (value) {
                             if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
                             if (value >= 1000) return (value / 1000).toFixed(0) + 'k';
@@ -518,11 +527,12 @@ async function updateChart() {
                     type: 'linear',
                     display: true,
                     position: 'right',
-                    title: { display: true, text: 'Price (GP)', color: '#4ade80' },
+                    title: { display: !isMobile, text: 'Price (GP)', color: '#4ade80', font: { size: fontSize } },
                     grid: { drawOnChartArea: false },
                     grace: '5%',
                     ticks: {
                         color: '#64748b',
+                        font: { size: fontSize },
                         callback: function (value) {
                             if (value >= 1000000) return (value / 1000000).toFixed(2) + 'M';
                             if (value >= 1000) return (value / 1000).toFixed(0) + 'k';
@@ -713,7 +723,13 @@ document.querySelectorAll('.range-btn').forEach(btn => {
         document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentTimeRange = btn.dataset.range;
-        updateChart();
+
+        // Update whichever chart is active
+        if (document.getElementById('type-analysis-view').style.display !== 'none') {
+            updateTypeChart();
+        } else {
+            updateChart();
+        }
     });
 });
 
@@ -732,8 +748,24 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
         document.querySelectorAll('.view-section').forEach(el => el.style.display = 'none');
         document.getElementById(`${btn.dataset.tab}-view`).style.display = 'block';
 
+        // Toggle Global Search Visibility
+        const globalSearch = document.querySelector('header .search-container');
+        if (btn.dataset.tab === 'type-analysis') {
+            globalSearch.style.display = 'none';
+        } else {
+            globalSearch.style.display = 'block';
+        }
+
         if (btn.dataset.tab === 'flipper') {
             renderFlipTable();
+        } else if (btn.dataset.tab === 'type-analysis') {
+            // If we have a query, ensure chart is rendered/updated
+            if (currentTypeQuery) {
+                // Small delay to ensure container is visible for Chart.js
+                setTimeout(() => {
+                    if (typeChartInstance) typeChartInstance.resize();
+                }, 50);
+            }
         }
     });
 });
@@ -754,4 +786,282 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     if (initialItem) updateItemInfo(initialItem);
 
     updateChart();
+
+    // Resize listener
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+            updateChart();
+            if (typeChartInstance) updateTypeChart(); // Update type chart on resize too
+        }, 250);
+    });
 })();
+
+// --- Item Type Analysis Logic ---
+
+let typeChartInstance = null;
+let currentTypeQuery = '';
+let currentTypeData = null; // Store aggregated data
+
+// Search Input Listener
+const typeSearchInput = document.getElementById('type-search');
+const typeSearchBtn = document.getElementById('type-search-btn');
+
+function triggerTypeSearch() {
+    const query = typeSearchInput.value.trim();
+    if (query.length > 2) {
+        analyzeItemType(query);
+    } else {
+        alert("Please enter at least 3 characters.");
+    }
+}
+
+typeSearchInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        triggerTypeSearch();
+    }
+});
+
+typeSearchBtn.addEventListener('click', triggerTypeSearch);
+
+async function analyzeItemType(query) {
+    currentTypeQuery = query;
+    const statsContainer = document.getElementById('type-stats');
+    const btn = document.getElementById('type-search-btn');
+
+    statsContainer.style.display = 'none'; // Hide while loading
+    const originalBtnText = btn.textContent;
+    btn.textContent = "Loading...";
+    btn.disabled = true;
+
+    try {
+        // 1. Find matching items
+        const matches = itemMapping.filter(item => item.name.toLowerCase().includes(query.toLowerCase()));
+
+        if (matches.length === 0) {
+            alert("No items found matching that type.");
+            return;
+        }
+
+        // 2. Filter for active items (must have 24h volume) and Sort by Volume
+        // We limit to top 20 to avoid API spam and keep performance high
+        const activeMatches = matches
+            .map(item => {
+                const volInfo = volumeData[item.id];
+                const volume = volInfo ? (volInfo.highPriceVolume + volInfo.lowPriceVolume) : 0;
+                return { ...item, volume };
+            })
+            .filter(item => item.volume > 0)
+            .sort((a, b) => b.volume - a.volume)
+            .slice(0, 20);
+
+        if (activeMatches.length === 0) {
+            alert("No active items found for this type.");
+            return;
+        }
+
+        // 3. Fetch Timeseries Data for all top items
+        // We'll use the current global `currentTimeRange`
+        const promises = activeMatches.map(item => fetchData(item.id, currentTimeRange));
+        const allSeries = await Promise.all(promises);
+
+        // 4. Aggregate Data
+        // We need to combine volumes and calculate avg price at each timestamp
+        // Since timestamps might not align perfectly, we'll bucket them.
+
+        // Determine bucket size based on range (same logic as processData)
+        let bucketSize = 300; // 5m
+        if (currentTimeRange === '7d') bucketSize = 3600; // 1h
+        if (currentTimeRange === '30d') bucketSize = 21600; // 6h
+
+        const aggregatedMap = new Map(); // timestamp -> { totalVol, totalPriceVol, count }
+
+        allSeries.forEach((series, index) => {
+            if (!series) return;
+            series.forEach(d => {
+                // Normalize timestamp to bucket
+                const timestamp = Math.floor(d.timestamp / bucketSize) * bucketSize;
+
+                if (!aggregatedMap.has(timestamp)) {
+                    aggregatedMap.set(timestamp, { totalVol: 0, totalPriceSum: 0, totalVolForPrice: 0 });
+                }
+
+                const bucket = aggregatedMap.get(timestamp);
+                const vol = (d.highPriceVolume || 0) + (d.lowPriceVolume || 0);
+                const price = d.avgHighPrice || d.avgLowPrice || 0;
+
+                bucket.totalVol += vol;
+                if (price > 0 && vol > 0) {
+                    bucket.totalPriceSum += (price * vol);
+                    bucket.totalVolForPrice += vol;
+                }
+            });
+        });
+
+        // Convert map to array and sort
+        const aggregatedData = Array.from(aggregatedMap.entries())
+            .map(([timestamp, data]) => ({
+                x: timestamp * 1000,
+                volume: data.totalVol,
+                price: data.totalVolForPrice > 0 ? data.totalPriceSum / data.totalVolForPrice : 0
+            }))
+            .sort((a, b) => a.x - b.x);
+
+        currentTypeData = aggregatedData; // Store for re-rendering
+
+        // 5. Update UI
+        renderTypeChart(aggregatedData);
+        updateTypeStats(activeMatches, aggregatedData);
+        renderTypeTable(activeMatches);
+
+        statsContainer.style.display = 'grid';
+    } catch (error) {
+        console.error("Type Analysis Error:", error);
+        alert("An error occurred while analyzing.");
+    } finally {
+        btn.textContent = originalBtnText;
+        btn.disabled = false;
+    }
+}
+
+function renderTypeChart(data) {
+    const ctx = document.getElementById('typeChart').getContext('2d');
+
+    if (typeChartInstance) {
+        typeChartInstance.destroy();
+    }
+
+    const isMobile = window.innerWidth < 768;
+    const fontSize = isMobile ? 10 : 12;
+
+    // Determine time unit
+    let timeUnit = 'hour';
+    let displayFormat = { hour: 'h a' };
+    if (currentTimeRange === '7d' || currentTimeRange === '30d') {
+        timeUnit = 'day';
+        displayFormat = { day: 'MMM d' };
+    }
+
+    typeChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            datasets: [
+                {
+                    label: 'Total Volume',
+                    data: data.map(d => ({ x: d.x, y: d.volume })),
+                    borderColor: '#38bdf8',
+                    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    yAxisID: 'y',
+                    tension: 0.4
+                },
+                {
+                    label: 'Avg Price',
+                    data: data.map(d => ({ x: d.x, y: d.price })),
+                    borderColor: '#facc15', // Yellow for price
+                    borderWidth: 2,
+                    yAxisID: 'y1',
+                    tension: 0.4,
+                    pointRadius: 0
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: 'index',
+            },
+            plugins: {
+                tooltip: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    titleColor: '#f8fafc',
+                    bodyColor: '#94a3b8',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1,
+                    padding: 10,
+                    titleFont: { size: fontSize + 2 },
+                    bodyFont: { size: fontSize }
+                },
+                legend: {
+                    labels: {
+                        color: '#94a3b8',
+                        font: { family: "'Outfit', sans-serif", size: fontSize }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        unit: timeUnit,
+                        displayFormats: displayFormat
+                    },
+                    grid: { display: false },
+                    ticks: { color: '#64748b', font: { size: fontSize } }
+                },
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: { display: !isMobile, text: 'Total Volume', color: '#38bdf8', font: { size: fontSize } },
+                    grid: { color: 'rgba(255, 255, 255, 0.03)' },
+                    ticks: { color: '#64748b', font: { size: fontSize } }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: { display: !isMobile, text: 'Avg Price', color: '#facc15', font: { size: fontSize } },
+                    grid: { drawOnChartArea: false },
+                    ticks: { color: '#64748b', font: { size: fontSize } }
+                }
+            }
+        }
+    });
+}
+
+function updateTypeStats(items, data) {
+    // Calculate totals from the aggregated data
+    const totalVolume = data.reduce((sum, d) => sum + d.volume, 0);
+    const avgPrice = data.length > 0 ? data[data.length - 1].price : 0; // Current avg price
+
+    document.getElementById('type-total-vol').textContent = totalVolume.toLocaleString();
+    document.getElementById('type-avg-price').textContent = Math.round(avgPrice).toLocaleString();
+    document.getElementById('type-item-count').textContent = items.length;
+}
+
+function renderTypeTable(items) {
+    const tbody = document.querySelector('#type-table tbody');
+    tbody.innerHTML = '';
+
+    items.forEach(item => {
+        const tr = document.createElement('tr');
+        const iconUrl = `https://oldschool.runescape.wiki/images/${item.icon.replace(/ /g, '_')}`;
+
+        // Get latest price
+        const price = latestPrices[item.id] ? latestPrices[item.id].high : 0;
+
+        tr.innerHTML = `
+            <td>
+                <div class="item-cell">
+                    <img src="${iconUrl}" alt="${item.name}">
+                    <span>${item.name}</span>
+                </div>
+            </td>
+            <td>${price.toLocaleString()}</td>
+            <td>${item.volume.toLocaleString()}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+// Update Type Chart when time range changes (if active)
+function updateTypeChart() {
+    if (currentTypeQuery && document.getElementById('type-analysis-view').style.display !== 'none') {
+        analyzeItemType(currentTypeQuery);
+    }
+}

@@ -568,21 +568,107 @@ footer a:hover {
 }
 
 @media (max-width: 768px) {
+    body {
+        padding: 1rem;
+    }
+
     h1 {
         font-size: 2rem;
     }
 
     .card-header {
         flex-direction: column;
-        gap: 1rem;
+        gap: 1.5rem;
         align-items: flex-start;
     }
 
+    .item-info {
+        width: 100%;
+    }
+
+    .controls {
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+    }
+
+    .view-toggle {
+        justify-content: space-between;
+    }
+
+    .time-ranges {
+        justify-content: space-between;
+    }
+
+    .range-btn {
+        flex: 1;
+        text-align: center;
+        padding: 0.5rem;
+    }
+
     .status-indicator {
-        align-self: flex-start;
+        align-self: center;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+    }
+
+    .stat-value {
+        font-size: 1.25rem;
     }
 
     .chart-container {
         height: 300px;
+    }
+
+    .main-nav {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .nav-btn {
+        width: 100%;
+        text-align: center;
+        padding: 0.75rem;
+    }
+
+    .filters {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .filter-group input {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    h1 {
+        font-size: 1.75rem;
+    }
+
+    .subtitle {
+        font-size: 1rem;
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .ai-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .ai-score-badge {
+        position: static;
+        display: inline-block;
+        margin-top: 0.5rem;
     }
 }
