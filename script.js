@@ -554,6 +554,7 @@ function renderFlipTable() {
     const minRoi = parseFloat(document.getElementById('filter-roi').value) || 0;
     const minMargin = parseInt(document.getElementById('filter-margin').value) || 0;
     const minLimit = parseInt(document.getElementById('filter-limit').value) || 0;
+    const maxLowBuy = parseInt(document.getElementById('filter-max-low').value);
 
     // Filter F2P items with valid prices
     let flips = itemMapping.filter(item =>
@@ -565,7 +566,7 @@ function renderFlipTable() {
         const prices = latestPrices[item.id];
         const margin = prices.high - prices.low;
         const roi = (margin / prices.low) * 100;
-
+        const limit = item.limit || 0;
         // Get 24h volume
         const volInfo = volumeData[item.id];
         const volume = volInfo ? (volInfo.highPriceVolume + volInfo.lowPriceVolume) : 0;
@@ -585,7 +586,8 @@ function renderFlipTable() {
         item.volume >= minVolume &&
         item.roi >= minRoi &&
         item.margin >= minMargin &&
-        (item.limit || 0) >= minLimit
+        (item.limit || 0) >= minLimit &&
+        (isNaN(maxLowBuy) || item.low <= maxLowBuy)
     );
 
     // Sort
@@ -670,7 +672,7 @@ document.querySelectorAll('th[data-sort]').forEach(th => {
 });
 
 // Event Listeners for Filters
-['filter-volume', 'filter-roi', 'filter-margin', 'filter-limit'].forEach(id => {
+['filter-volume', 'filter-roi', 'filter-margin', 'filter-limit', 'filter-max-low'].forEach(id => {
     document.getElementById(id).addEventListener('input', renderFlipTable);
 });
 
