@@ -164,20 +164,41 @@ function formatPrice(value) {
     return Math.round(value).toLocaleString();
 }
 
+function formatHistogramValue(value) {
+    if (value === null || value === undefined || Number.isNaN(value)) return '--';
+
+    // Keep labels distinct to avoid collapsed ranges like "10k - 10k" on flat items.
+    if (Math.abs(value) >= 1_000_000) {
+        return (value / 1_000_000).toFixed(2).replace(/\.00$/, '') + 'M';
+    }
+    if (Math.abs(value) >= 100_000) {
+        return Math.round(value / 1_000).toLocaleString() + 'k';
+    }
+    if (Math.abs(value) >= 10_000) {
+        return (value / 1_000).toFixed(1).replace(/\.0$/, '') + 'k';
+    }
+    if (Math.abs(value) >= 1_000) {
+        return (value / 1_000).toFixed(2).replace(/0+$/, '').replace(/\.$/, '') + 'k';
+    }
+
+    return Math.round(value).toLocaleString();
+}
+
 function generateHistogram(data, key) {
     const prices = data
         .map(d => d[key])
         .filter(v => v !== null && v !== undefined && !Number.isNaN(v));
 
     if (prices.length === 0) {
-        return { labels: [], counts: [] };
+        return { labels: [], counts: [], hasData: false };
     }
 
     const min = Math.min(...prices);
     const max = Math.max(...prices);
 
     if (min === max) {
-        return { labels: [formatPrice(min)], counts: [prices.length] };
+        const label = `${formatHistogramValue(min)} - ${formatHistogramValue(max)}`;
+        return { labels: [label], counts: [prices.length], hasData: true };
     }
 
     const targetBinCount = Math.min(10, Math.max(6, Math.ceil(Math.sqrt(prices.length))));
@@ -210,21 +231,42 @@ function generateHistogram(data, key) {
     const labels = bins.map((_, i) => {
         const rangeStart = start + (binSize * i);
         const rangeEnd = rangeStart + binSize;
-        return `${formatPrice(rangeStart)} - ${formatPrice(rangeEnd)}`;
+        return `${formatHistogramValue(rangeStart)} - ${formatHistogramValue(rangeEnd)}`;
     });
 
-    return { labels, counts: bins };
+    return { labels, counts: bins, hasData: true };
 }
 
 function renderHistogramCharts(filteredData) {
     const highCtx = document.getElementById('highHistogramChart').getContext('2d');
     const lowCtx = document.getElementById('lowHistogramChart').getContext('2d');
+    const highEmpty = document.getElementById('high-hist-empty');
+    const lowEmpty = document.getElementById('low-hist-empty');
+    const highCanvas = document.getElementById('highHistogramChart');
+    const lowCanvas = document.getElementById('lowHistogramChart');
 
     const highHistogram = generateHistogram(filteredData, 'avgHighPrice');
     const lowHistogram = generateHistogram(filteredData, 'avgLowPrice');
 
     if (highHistogramChart) highHistogramChart.destroy();
     if (lowHistogramChart) lowHistogramChart.destroy();
+
+    const toggleHistogram = (histogram, emptyEl, canvasEl) => {
+        const hasData = histogram.hasData && histogram.counts.some(count => count > 0);
+        emptyEl.style.display = hasData ? 'none' : 'block';
+        canvasEl.style.display = hasData ? 'block' : 'none';
+        return hasData;
+    };
+
+    const hasHighData = toggleHistogram(highHistogram, highEmpty, highCanvas);
+    const hasLowData = toggleHistogram(lowHistogram, lowEmpty, lowCanvas);
+
+    // If both histograms are missing data, avoid rendering empty Chart.js shells.
+    if (!hasHighData && !hasLowData) {
+        highHistogramChart = null;
+        lowHistogramChart = null;
+        return;
+    }
 
     const isMobile = window.innerWidth < 768;
     const fontSize = isMobile ? 10 : 12;
@@ -278,15 +320,23 @@ function renderHistogramCharts(filteredData) {
         };
     };
 
-    highHistogramChart = new Chart(highCtx, createHistogramConfig(highHistogram, {
-        background: 'rgba(74, 222, 128, 0.6)',
-        border: '#4ade80'
-    }));
+    if (hasHighData) {
+        highHistogramChart = new Chart(highCtx, createHistogramConfig(highHistogram, {
+            background: 'rgba(74, 222, 128, 0.6)',
+            border: '#4ade80'
+        }));
+    } else {
+        highHistogramChart = null;
+    }
 
-    lowHistogramChart = new Chart(lowCtx, createHistogramConfig(lowHistogram, {
-        background: 'rgba(244, 114, 182, 0.6)',
-        border: '#f472b6'
-    }));
+    if (hasLowData) {
+        lowHistogramChart = new Chart(lowCtx, createHistogramConfig(lowHistogram, {
+            background: 'rgba(244, 114, 182, 0.6)',
+            border: '#f472b6'
+        }));
+    } else {
+        lowHistogramChart = null;
+    }
 }
 
 // AI Logic

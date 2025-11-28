@@ -572,6 +572,16 @@ h2 {
     font-size: 1.1rem;
 }
 
+.hist-empty {
+    display: none;
+    background: rgba(148, 163, 184, 0.08);
+    border: 1px dashed rgba(148, 163, 184, 0.25);
+    color: #cbd5e1;
+    padding: 0.65rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.95rem;
+}
+
 .hist-chart-wrapper {
     position: relative;
     height: 260px;
