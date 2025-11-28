@@ -118,22 +118,12 @@
                     <div class="histogram-grid">
                         <div class="hist-card">
                             <div class="hist-header">
-                                <h3>High Price Frequency</h3>
-                                <p class="subtitle">Occurrences of average high prices in the selected window</p>
+                                <h3>Price Frequency</h3>
+                                <p class="subtitle">Occurrences of average high and low prices in the selected window</p>
                             </div>
-                            <p class="hist-empty" id="high-hist-empty">No recent high price data available for this window.</p>
+                            <p class="hist-empty" id="combined-hist-empty">No recent price data available for this window.</p>
                             <div class="hist-chart-wrapper">
-                                <canvas id="highHistogramChart"></canvas>
-                            </div>
-                        </div>
-                        <div class="hist-card">
-                            <div class="hist-header">
-                                <h3>Low Price Frequency</h3>
-                                <p class="subtitle">Occurrences of average low prices in the selected window</p>
-                            </div>
-                            <p class="hist-empty" id="low-hist-empty">No recent low price data available for this window.</p>
-                            <div class="hist-chart-wrapper">
-                                <canvas id="lowHistogramChart"></canvas>
+                                <canvas id="combinedHistogramChart"></canvas>
                             </div>
                         </div>
                     </div>
