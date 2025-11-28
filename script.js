@@ -554,6 +554,8 @@ function renderFlipTable() {
     const minRoi = parseFloat(document.getElementById('filter-roi').value) || 0;
     const minMargin = parseInt(document.getElementById('filter-margin').value) || 0;
     const minLimit = parseInt(document.getElementById('filter-limit').value) || 0;
+    const maxBuyPriceInput = parseInt(document.getElementById('filter-max-buy').value);
+    const maxBuyPrice = isNaN(maxBuyPriceInput) ? Infinity : maxBuyPriceInput;
 
     // Filter F2P items with valid prices
     let flips = itemMapping.filter(item =>
@@ -566,7 +568,6 @@ function renderFlipTable() {
         const margin = prices.high - prices.low;
         const roi = (margin / prices.low) * 100;
         const limit = item.limit || 0;
-        const maxLowBuy = limit > 0 ? prices.low * limit : 0;
 
         // Get 24h volume
         const volInfo = volumeData[item.id];
@@ -579,7 +580,7 @@ function renderFlipTable() {
         const itemWithStats = { ...item, roi, volume, margin };
         const score = calculateAiScore(itemWithStats);
 
-        return { ...item, ...prices, margin, roi, volume, vol1h, score, maxLowBuy };
+        return { ...item, ...prices, margin, roi, volume, vol1h, score };
     });
 
     // Apply Filters
@@ -587,7 +588,8 @@ function renderFlipTable() {
         item.volume >= minVolume &&
         item.roi >= minRoi &&
         item.margin >= minMargin &&
-        (item.limit || 0) >= minLimit
+        (item.limit || 0) >= minLimit &&
+        item.low <= maxBuyPrice
     );
 
     // Sort
@@ -637,7 +639,6 @@ function renderFlipTable() {
             <td>${(item.limit || 'Unknown').toLocaleString()}</td>
             <td>${item.high.toLocaleString()}</td>
             <td>${item.low.toLocaleString()}</td>
-            <td>${item.maxLowBuy > 0 ? item.maxLowBuy.toLocaleString() : '—'}</td>
             <td class="positive">+${item.margin.toLocaleString()}</td>
             <td class="${item.roi > 5 ? 'positive' : ''}">${item.roi.toFixed(2)}%</td>
             <td>${item.volume.toLocaleString()}</td>
@@ -673,7 +674,7 @@ document.querySelectorAll('th[data-sort]').forEach(th => {
 });
 
 // Event Listeners for Filters
-['filter-volume', 'filter-roi', 'filter-margin', 'filter-limit'].forEach(id => {
+['filter-volume', 'filter-roi', 'filter-margin', 'filter-limit', 'filter-max-buy'].forEach(id => {
     document.getElementById(id).addEventListener('input', renderFlipTable);
 });
 

@@ -125,24 +125,28 @@
                         <p class="subtitle">High volume, non-member items with potential margins</p>
                     </div>
 
-                    <div class="filters">
-                        <div class="filter-group">
-                            <label>Min Volume (24h)</label>
-                            <input type="number" id="filter-volume" placeholder="e.g. 10000" value="1000">
+                        <div class="filters">
+                            <div class="filter-group">
+                                <label>Min Volume (24h)</label>
+                                <input type="number" id="filter-volume" placeholder="e.g. 10000" value="1000">
+                            </div>
+                            <div class="filter-group">
+                                <label>Min ROI %</label>
+                                <input type="number" id="filter-roi" placeholder="e.g. 1" value="0.5">
+                            </div>
+                            <div class="filter-group">
+                                <label>Min Margin</label>
+                                <input type="number" id="filter-margin" placeholder="e.g. 5" value="1">
+                            </div>
+                            <div class="filter-group">
+                                <label>Min Limit</label>
+                                <input type="number" id="filter-limit" placeholder="e.g. 100" value="0">
+                            </div>
+                            <div class="filter-group">
+                                <label>Max Buy Price</label>
+                                <input type="number" id="filter-max-buy" placeholder="e.g. 5000">
+                            </div>
                         </div>
-                        <div class="filter-group">
-                            <label>Min ROI %</label>
-                            <input type="number" id="filter-roi" placeholder="e.g. 1" value="0.5">
-                        </div>
-                        <div class="filter-group">
-                            <label>Min Margin</label>
-                            <input type="number" id="filter-margin" placeholder="e.g. 5" value="1">
-                        </div>
-                        <div class="filter-group">
-                            <label>Min Limit</label>
-                            <input type="number" id="filter-limit" placeholder="e.g. 100" value="0">
-                        </div>
-                    </div>
 
                     <div class="table-container">
                         <table id="flip-table">
@@ -153,7 +157,6 @@
                                     <th data-sort="limit">Limit</th>
                                     <th data-sort="high">Target Sell</th>
                                     <th data-sort="low">Target Buy</th>
-                                    <th data-sort="maxLowBuy">Max Low Buy</th>
                                     <th data-sort="margin">Margin</th>
                                     <th data-sort="roi">ROI</th>
                                     <th data-sort="volume">Volume (24h)</th>
