@@ -126,16 +126,18 @@ function processData(filteredData, mode, dayFilter = 'all') {
         totalVolume: 0,
         totalHigh: 0, countHigh: 0,
         totalLow: 0, countLow: 0,
-        count: 0
     }));
+
+    const observedDays = new Set();
 
     dayFilteredData.forEach(d => {
         const date = new Date(d.timestamp * 1000);
         const hour = date.getHours();
+        const dayKey = date.toISOString().split('T')[0];
+        observedDays.add(dayKey);
 
         const vol = (d.highPriceVolume || 0) + (d.lowPriceVolume || 0);
         hourlyBuckets[hour].totalVolume += vol;
-        hourlyBuckets[hour].count += 1;
 
         if (d.avgHighPrice) {
             hourlyBuckets[hour].totalHigh += d.avgHighPrice;
@@ -150,8 +152,10 @@ function processData(filteredData, mode, dayFilter = 'all') {
     const today = new Date();
     today.setMinutes(0, 0, 0);
 
+    const dayCount = Math.max(observedDays.size, 1);
+
     return hourlyBuckets.map((bucket, hour) => {
-        const avgVolume = bucket.count > 0 ? bucket.totalVolume / bucket.count : 0;
+        const avgVolume = bucket.totalVolume / dayCount;
         const avgHigh = bucket.countHigh > 0 ? bucket.totalHigh / bucket.countHigh : null;
         const avgLow = bucket.countLow > 0 ? bucket.totalLow / bucket.countLow : null;
 
@@ -951,9 +955,13 @@ document.getElementById('mode-toggle').addEventListener('change', (e) => {
 });
 
 // Day Filter for Time-of-Day Analysis
-document.getElementById('day-filter-select').addEventListener('change', (e) => {
-    currentDayFilter = e.target.value;
-    updateChart();
+document.querySelectorAll('#day-filter-group .day-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('#day-filter-group .day-pill').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentDayFilter = btn.dataset.day;
+        updateChart();
+    });
 });
 
 // Tab Switching

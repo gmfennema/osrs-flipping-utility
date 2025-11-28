@@ -51,17 +51,17 @@
                                 <span class="toggle-label">Time of Day</span>
                             </div>
                             <div class="day-filter">
-                                <label for="day-filter-select">Day Filter</label>
-                                <select id="day-filter-select">
-                                    <option value="all" selected>All days</option>
-                                    <option value="1">Monday</option>
-                                    <option value="2">Tuesday</option>
-                                    <option value="3">Wednesday</option>
-                                    <option value="4">Thursday</option>
-                                    <option value="5">Friday</option>
-                                    <option value="6">Saturday</option>
-                                    <option value="0">Sunday</option>
-                                </select>
+                                <div class="day-filter-label">Day Focus</div>
+                                <div class="day-pill-group" id="day-filter-group">
+                                    <button class="day-pill active" data-day="all">All</button>
+                                    <button class="day-pill" data-day="1">Mon</button>
+                                    <button class="day-pill" data-day="2">Tue</button>
+                                    <button class="day-pill" data-day="3">Wed</button>
+                                    <button class="day-pill" data-day="4">Thu</button>
+                                    <button class="day-pill" data-day="5">Fri</button>
+                                    <button class="day-pill" data-day="6">Sat</button>
+                                    <button class="day-pill" data-day="0">Sun</button>
+                                </div>
                             </div>
                             <div class="time-ranges">
                                 <button class="range-btn active" data-range="24h">24h</button>
