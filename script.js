@@ -180,20 +180,37 @@ function generateHistogram(data, key) {
         return { labels: [formatPrice(min)], counts: [prices.length] };
     }
 
-    const binCount = Math.min(12, Math.max(4, Math.ceil(Math.sqrt(prices.length))));
-    const binSize = (max - min) / binCount || 1;
+    const targetBinCount = Math.min(10, Math.max(6, Math.ceil(Math.sqrt(prices.length))));
+    const priceRange = max - min;
+    const rawBinSize = priceRange / targetBinCount;
+
+    // Snap bin size to a "nice" step so high-variance items group cleanly (e.g., Rune Med Helm).
+    const magnitude = Math.pow(10, Math.floor(Math.log10(rawBinSize)));
+    const normalized = rawBinSize / magnitude;
+    let niceStep;
+
+    if (normalized <= 1) niceStep = 1;
+    else if (normalized <= 2) niceStep = 2;
+    else if (normalized <= 2.5) niceStep = 2.5;
+    else if (normalized <= 5) niceStep = 5;
+    else niceStep = 10;
+
+    const binSize = Math.max(1, niceStep * magnitude);
+    const start = Math.floor(min / binSize) * binSize;
+    const end = Math.ceil(max / binSize) * binSize;
+    const binCount = Math.max(1, Math.ceil((end - start) / binSize));
     const bins = Array(binCount).fill(0);
 
     prices.forEach(price => {
-        let index = Math.floor((price - min) / binSize);
+        let index = Math.floor((price - start) / binSize);
         if (index >= binCount) index = binCount - 1;
         bins[index]++;
     });
 
     const labels = bins.map((_, i) => {
-        const start = min + (binSize * i);
-        const end = i === binCount - 1 ? max : min + (binSize * (i + 1));
-        return `${formatPrice(start)} - ${formatPrice(end)}`;
+        const rangeStart = start + (binSize * i);
+        const rangeEnd = rangeStart + binSize;
+        return `${formatPrice(rangeStart)} - ${formatPrice(rangeEnd)}`;
     });
 
     return { labels, counts: bins };
