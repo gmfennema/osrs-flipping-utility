@@ -565,6 +565,8 @@ function renderFlipTable() {
         const prices = latestPrices[item.id];
         const margin = prices.high - prices.low;
         const roi = (margin / prices.low) * 100;
+        const limit = item.limit || 0;
+        const maxLowBuy = limit > 0 ? prices.low * limit : 0;
 
         // Get 24h volume
         const volInfo = volumeData[item.id];
@@ -577,7 +579,7 @@ function renderFlipTable() {
         const itemWithStats = { ...item, roi, volume, margin };
         const score = calculateAiScore(itemWithStats);
 
-        return { ...item, ...prices, margin, roi, volume, vol1h, score };
+        return { ...item, ...prices, margin, roi, volume, vol1h, score, maxLowBuy };
     });
 
     // Apply Filters
@@ -635,6 +637,7 @@ function renderFlipTable() {
             <td>${(item.limit || 'Unknown').toLocaleString()}</td>
             <td>${item.high.toLocaleString()}</td>
             <td>${item.low.toLocaleString()}</td>
+            <td>${item.maxLowBuy > 0 ? item.maxLowBuy.toLocaleString() : '—'}</td>
             <td class="positive">+${item.margin.toLocaleString()}</td>
             <td class="${item.roi > 5 ? 'positive' : ''}">${item.roi.toFixed(2)}%</td>
             <td>${item.volume.toLocaleString()}</td>
