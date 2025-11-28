@@ -65,11 +65,17 @@ async function fetch1hVolume() {
     }
 }
 
-async function fetchData(id, range) {
+async function fetchData(id, range, mode = 'timeline') {
     let timestep = '5m';
-    if (range === '7d') timestep = '1h';
-    if (range === '30d') timestep = '6h';
-    if (range === 'ytd') timestep = '24h';
+
+    if (mode === 'time-of-day') {
+        // Time-of-day needs hourly granularity to build a full 24-hour profile
+        timestep = range === '24h' ? '5m' : '1h';
+    } else {
+        if (range === '7d') timestep = '1h';
+        if (range === '30d') timestep = '6h';
+        if (range === 'ytd') timestep = '24h';
+    }
 
     const url = `${API_BASE}/timeseries?timestep=${timestep}&id=${id}`;
 
@@ -537,7 +543,7 @@ async function updateItemInfo(item) {
 
 async function updateChart() {
     // Fetch data first so we have history for trend calc
-    const rawData = await fetchData(currentItemId, currentTimeRange);
+    const rawData = await fetchData(currentItemId, currentTimeRange, viewMode);
     currentItemHistory = rawData; // Store for trend calc
 
     const filteredData = filterDataByRange(rawData, currentTimeRange);
