@@ -123,50 +123,50 @@ function processData(filteredData, mode, dayFilter = 'all') {
         : filteredData.filter(d => new Date(d.timestamp * 1000).getDay() === Number(dayFilter));
 
     const hourlyBuckets = new Array(24).fill(0).map(() => ({
-        totalVolume: 0,
-        totalHigh: 0, countHigh: 0,
-        totalLow: 0, countLow: 0,
+        volumes: [],
+        highs: [],
+        lows: [],
     }));
-
-    const observedDays = new Set();
 
     dayFilteredData.forEach(d => {
         const date = new Date(d.timestamp * 1000);
         const hour = date.getHours();
-        const dayKey = date.toISOString().split('T')[0];
-        observedDays.add(dayKey);
-
         const vol = (d.highPriceVolume || 0) + (d.lowPriceVolume || 0);
-        hourlyBuckets[hour].totalVolume += vol;
+        hourlyBuckets[hour].volumes.push(vol);
 
-        if (d.avgHighPrice) {
-            hourlyBuckets[hour].totalHigh += d.avgHighPrice;
-            hourlyBuckets[hour].countHigh++;
+        if (d.avgHighPrice !== null && d.avgHighPrice !== undefined) {
+            hourlyBuckets[hour].highs.push(d.avgHighPrice);
         }
-        if (d.avgLowPrice) {
-            hourlyBuckets[hour].totalLow += d.avgLowPrice;
-            hourlyBuckets[hour].countLow++;
+        if (d.avgLowPrice !== null && d.avgLowPrice !== undefined) {
+            hourlyBuckets[hour].lows.push(d.avgLowPrice);
         }
     });
 
     const today = new Date();
     today.setMinutes(0, 0, 0);
 
-    const dayCount = Math.max(observedDays.size, 1);
+    const median = (values) => {
+        if (!values || values.length === 0) return null;
+        const sorted = [...values].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 === 0
+            ? (sorted[mid - 1] + sorted[mid]) / 2
+            : sorted[mid];
+    };
 
     return hourlyBuckets.map((bucket, hour) => {
-        const avgVolume = bucket.totalVolume / dayCount;
-        const avgHigh = bucket.countHigh > 0 ? bucket.totalHigh / bucket.countHigh : null;
-        const avgLow = bucket.countLow > 0 ? bucket.totalLow / bucket.countLow : null;
+        const medianVolume = bucket.volumes.length > 0 ? median(bucket.volumes) : 0;
+        const medianHigh = median(bucket.highs);
+        const medianLow = median(bucket.lows);
 
         const pointDate = new Date(today);
         pointDate.setHours(hour);
 
         return {
             x: pointDate.getTime(),
-            volume: avgVolume,
-            priceHigh: avgHigh,
-            priceLow: avgLow
+            volume: medianVolume,
+            priceHigh: medianHigh,
+            priceLow: medianLow
         };
     }).sort((a, b) => a.x - b.x);
 }
