@@ -6,6 +6,8 @@ let latestPrices = {};
 let volumeData = {}; // Stores 24h volume
 let volume1hData = {}; // Stores 1h volume
 let chartInstance = null;
+let highHistogramChart = null;
+let lowHistogramChart = null;
 let currentItemHistory = []; // Store history for trend calc
 
 // Sort/Filter State
@@ -83,8 +85,8 @@ async function fetchData(id, range) {
     }
 }
 
-function processData(data, range, mode) {
-    data.sort((a, b) => a.timestamp - b.timestamp);
+function filterDataByRange(data, range) {
+    const sorted = [...data].sort((a, b) => a.timestamp - b.timestamp);
 
     const now = Math.floor(Date.now() / 1000);
     let startTime;
@@ -97,8 +99,10 @@ function processData(data, range, mode) {
         startTime = startOfYear;
     }
 
-    const filteredData = data.filter(d => d.timestamp > startTime);
+    return sorted.filter(d => d.timestamp > startTime);
+}
 
+function processData(filteredData, mode) {
     if (mode === 'timeline') {
         return filteredData.map(d => ({
             x: d.timestamp * 1000,
@@ -151,6 +155,138 @@ function processData(data, range, mode) {
             priceLow: avgLow
         };
     }).sort((a, b) => a.x - b.x);
+}
+
+function formatPrice(value) {
+    if (value === null || value === undefined) return '--';
+    if (Math.abs(value) >= 1_000_000) return (value / 1_000_000).toFixed(2) + 'M';
+    if (Math.abs(value) >= 1_000) return Math.round(value / 1_000) + 'k';
+    return Math.round(value).toLocaleString();
+}
+
+function generateHistogram(data, key) {
+    const prices = data
+        .map(d => d[key])
+        .filter(v => v !== null && v !== undefined && !Number.isNaN(v));
+
+    if (prices.length === 0) {
+        return { labels: [], counts: [] };
+    }
+
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+
+    if (min === max) {
+        return { labels: [formatPrice(min)], counts: [prices.length] };
+    }
+
+    const targetBinCount = Math.min(10, Math.max(6, Math.ceil(Math.sqrt(prices.length))));
+    const priceRange = max - min;
+    const rawBinSize = priceRange / targetBinCount;
+
+    // Snap bin size to a "nice" step so high-variance items group cleanly (e.g., Rune Med Helm).
+    const magnitude = Math.pow(10, Math.floor(Math.log10(rawBinSize)));
+    const normalized = rawBinSize / magnitude;
+    let niceStep;
+
+    if (normalized <= 1) niceStep = 1;
+    else if (normalized <= 2) niceStep = 2;
+    else if (normalized <= 2.5) niceStep = 2.5;
+    else if (normalized <= 5) niceStep = 5;
+    else niceStep = 10;
+
+    const binSize = Math.max(1, niceStep * magnitude);
+    const start = Math.floor(min / binSize) * binSize;
+    const end = Math.ceil(max / binSize) * binSize;
+    const binCount = Math.max(1, Math.ceil((end - start) / binSize));
+    const bins = Array(binCount).fill(0);
+
+    prices.forEach(price => {
+        let index = Math.floor((price - start) / binSize);
+        if (index >= binCount) index = binCount - 1;
+        bins[index]++;
+    });
+
+    const labels = bins.map((_, i) => {
+        const rangeStart = start + (binSize * i);
+        const rangeEnd = rangeStart + binSize;
+        return `${formatPrice(rangeStart)} - ${formatPrice(rangeEnd)}`;
+    });
+
+    return { labels, counts: bins };
+}
+
+function renderHistogramCharts(filteredData) {
+    const highCtx = document.getElementById('highHistogramChart').getContext('2d');
+    const lowCtx = document.getElementById('lowHistogramChart').getContext('2d');
+
+    const highHistogram = generateHistogram(filteredData, 'avgHighPrice');
+    const lowHistogram = generateHistogram(filteredData, 'avgLowPrice');
+
+    if (highHistogramChart) highHistogramChart.destroy();
+    if (lowHistogramChart) lowHistogramChart.destroy();
+
+    const isMobile = window.innerWidth < 768;
+    const fontSize = isMobile ? 10 : 12;
+
+    const createHistogramConfig = (histogram, colors) => {
+        const maxCount = histogram.counts.length > 0 ? Math.max(...histogram.counts) : 0;
+
+        return {
+            type: 'bar',
+            data: {
+                labels: histogram.labels,
+                datasets: [{
+                    data: histogram.counts,
+                    backgroundColor: colors.background,
+                    borderColor: colors.border,
+                    borderWidth: 1.5,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        titleColor: '#f8fafc',
+                        bodyColor: '#94a3b8',
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                        borderWidth: 1,
+                        padding: isMobile ? 8 : 12,
+                        titleFont: { size: fontSize + 2 },
+                        bodyFont: { size: fontSize }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#64748b', font: { size: fontSize } },
+                        grid: { display: false },
+                        stacked: false
+                    },
+                    y: {
+                        ticks: { color: '#64748b', font: { size: fontSize } },
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        beginAtZero: true,
+                        suggestedMax: maxCount > 0 ? Math.ceil(maxCount * 1.1) : 1,
+                        grace: '5%'
+                    }
+                }
+            }
+        };
+    };
+
+    highHistogramChart = new Chart(highCtx, createHistogramConfig(highHistogram, {
+        background: 'rgba(74, 222, 128, 0.6)',
+        border: '#4ade80'
+    }));
+
+    lowHistogramChart = new Chart(lowCtx, createHistogramConfig(lowHistogram, {
+        background: 'rgba(244, 114, 182, 0.6)',
+        border: '#f472b6'
+    }));
 }
 
 // AI Logic
@@ -347,7 +483,8 @@ async function updateChart() {
     const rawData = await fetchData(currentItemId, currentTimeRange);
     currentItemHistory = rawData; // Store for trend calc
 
-    const chartData = processData(rawData, currentTimeRange, viewMode);
+    const filteredData = filterDataByRange(rawData, currentTimeRange);
+    const chartData = processData(filteredData, viewMode);
 
     // Now update info (which uses currentItemHistory)
     const item = itemMapping.find(i => i.id === currentItemId);
@@ -543,6 +680,8 @@ async function updateChart() {
             }
         }
     });
+
+    renderHistogramCharts(filteredData);
 }
 
 function renderFlipTable() {
