@@ -133,6 +133,40 @@ h1 {
     gap: 1.5rem;
 }
 
+.day-filter {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    background: rgba(15, 23, 42, 0.5);
+    padding: 0.5rem 0.75rem;
+    border-radius: 12px;
+    border: 1px solid var(--glass-border);
+    min-width: 150px;
+}
+
+.day-filter label {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.day-filter select {
+    background: rgba(30, 41, 59, 0.8);
+    border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    outline: none;
+    cursor: pointer;
+}
+
+.day-filter select:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
 /* Toggle Switch */
 .view-toggle {
     display: flex;
@@ -632,6 +666,10 @@ footer a:hover {
 
     .view-toggle {
         justify-content: space-between;
+    }
+
+    .day-filter {
+        width: 100%;
     }
 
     .time-ranges {

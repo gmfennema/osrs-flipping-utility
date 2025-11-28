@@ -1,6 +1,7 @@
 let currentItemId = 888; // Default: Mithril arrows
 let currentTimeRange = '24h';
 let viewMode = 'timeline'; // 'timeline' or 'time-of-day'
+let currentDayFilter = 'all'; // 'all' or 0-6 (Sun-Sat)
 let itemMapping = [];
 let latestPrices = {};
 let volumeData = {}; // Stores 24h volume
@@ -107,7 +108,7 @@ function filterDataByRange(data, range) {
     return sorted.filter(d => d.timestamp > startTime);
 }
 
-function processData(filteredData, mode) {
+function processData(filteredData, mode, dayFilter = 'all') {
     if (mode === 'timeline') {
         return filteredData.map(d => ({
             x: d.timestamp * 1000,
@@ -117,6 +118,10 @@ function processData(filteredData, mode) {
         }));
     }
 
+    const dayFilteredData = dayFilter === 'all'
+        ? filteredData
+        : filteredData.filter(d => new Date(d.timestamp * 1000).getDay() === Number(dayFilter));
+
     const hourlyBuckets = new Array(24).fill(0).map(() => ({
         totalVolume: 0,
         totalHigh: 0, countHigh: 0,
@@ -124,7 +129,7 @@ function processData(filteredData, mode) {
         count: 0
     }));
 
-    filteredData.forEach(d => {
+    dayFilteredData.forEach(d => {
         const date = new Date(d.timestamp * 1000);
         const hour = date.getHours();
 
@@ -547,7 +552,7 @@ async function updateChart() {
     currentItemHistory = rawData; // Store for trend calc
 
     const filteredData = filterDataByRange(rawData, currentTimeRange);
-    const chartData = processData(filteredData, viewMode);
+    const chartData = processData(filteredData, viewMode, currentDayFilter);
 
     // Now update info (which uses currentItemHistory)
     const item = itemMapping.find(i => i.id === currentItemId);
@@ -942,6 +947,12 @@ document.querySelectorAll('.range-btn').forEach(btn => {
 // View Mode Toggle
 document.getElementById('mode-toggle').addEventListener('change', (e) => {
     viewMode = e.target.checked ? 'time-of-day' : 'timeline';
+    updateChart();
+});
+
+// Day Filter for Time-of-Day Analysis
+document.getElementById('day-filter-select').addEventListener('change', (e) => {
+    currentDayFilter = e.target.value;
     updateChart();
 });
 
