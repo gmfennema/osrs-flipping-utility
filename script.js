@@ -6,8 +6,7 @@ let latestPrices = {};
 let volumeData = {}; // Stores 24h volume
 let volume1hData = {}; // Stores 1h volume
 let chartInstance = null;
-let highHistogramChart = null;
-let lowHistogramChart = null;
+let histogramChart = null;
 let currentItemHistory = []; // Store history for trend calc
 
 // Sort/Filter State
@@ -184,24 +183,37 @@ function formatHistogramValue(value) {
     return Math.round(value).toLocaleString();
 }
 
-function generateHistogram(data, key) {
-    const prices = data
-        .map(d => d[key])
+function generateCombinedHistogram(data) {
+    const highPrices = data
+        .map(d => d.avgHighPrice)
+        .filter(v => v !== null && v !== undefined && !Number.isNaN(v));
+    const lowPrices = data
+        .map(d => d.avgLowPrice)
         .filter(v => v !== null && v !== undefined && !Number.isNaN(v));
 
-    if (prices.length === 0) {
-        return { labels: [], counts: [], hasData: false };
+    const hasHigh = highPrices.length > 0;
+    const hasLow = lowPrices.length > 0;
+
+    if (!hasHigh && !hasLow) {
+        return { labels: [], highCounts: [], lowCounts: [], hasHigh: false, hasLow: false };
     }
 
-    const min = Math.min(...prices);
-    const max = Math.max(...prices);
+    const allPrices = [...highPrices, ...lowPrices];
+    const min = Math.min(...allPrices);
+    const max = Math.max(...allPrices);
 
     if (min === max) {
         const label = `${formatHistogramValue(min)} - ${formatHistogramValue(max)}`;
-        return { labels: [label], counts: [prices.length], hasData: true };
+        return {
+            labels: [label],
+            highCounts: hasHigh ? [highPrices.length] : [0],
+            lowCounts: hasLow ? [lowPrices.length] : [0],
+            hasHigh,
+            hasLow
+        };
     }
 
-    const targetBinCount = Math.min(10, Math.max(6, Math.ceil(Math.sqrt(prices.length))));
+    const targetBinCount = Math.min(10, Math.max(6, Math.ceil(Math.sqrt(allPrices.length))));
     const priceRange = max - min;
     const rawBinSize = priceRange / targetBinCount;
 
@@ -220,123 +232,118 @@ function generateHistogram(data, key) {
     const start = Math.floor(min / binSize) * binSize;
     const end = Math.ceil(max / binSize) * binSize;
     const binCount = Math.max(1, Math.ceil((end - start) / binSize));
-    const bins = Array(binCount).fill(0);
 
-    prices.forEach(price => {
-        let index = Math.floor((price - start) / binSize);
-        if (index >= binCount) index = binCount - 1;
-        bins[index]++;
-    });
+    const countPricesInBins = (prices) => {
+        const bins = Array(binCount).fill(0);
+        prices.forEach(price => {
+            let index = Math.floor((price - start) / binSize);
+            if (index >= binCount) index = binCount - 1;
+            bins[index]++;
+        });
+        return bins;
+    };
 
-    const labels = bins.map((_, i) => {
+    const labels = Array.from({ length: binCount }, (_, i) => {
         const rangeStart = start + (binSize * i);
         const rangeEnd = rangeStart + binSize;
         return `${formatHistogramValue(rangeStart)} - ${formatHistogramValue(rangeEnd)}`;
     });
 
-    return { labels, counts: bins, hasData: true };
+    return {
+        labels,
+        highCounts: countPricesInBins(highPrices),
+        lowCounts: countPricesInBins(lowPrices),
+        hasHigh,
+        hasLow
+    };
 }
 
 function renderHistogramCharts(filteredData) {
-    const highCtx = document.getElementById('highHistogramChart').getContext('2d');
-    const lowCtx = document.getElementById('lowHistogramChart').getContext('2d');
-    const highEmpty = document.getElementById('high-hist-empty');
-    const lowEmpty = document.getElementById('low-hist-empty');
-    const highCanvas = document.getElementById('highHistogramChart');
-    const lowCanvas = document.getElementById('lowHistogramChart');
+    const histogramCtx = document.getElementById('combinedHistogramChart').getContext('2d');
+    const emptyMessage = document.getElementById('combined-hist-empty');
+    const histogramCanvas = document.getElementById('combinedHistogramChart');
 
-    const highHistogram = generateHistogram(filteredData, 'avgHighPrice');
-    const lowHistogram = generateHistogram(filteredData, 'avgLowPrice');
+    const histogram = generateCombinedHistogram(filteredData);
 
-    if (highHistogramChart) highHistogramChart.destroy();
-    if (lowHistogramChart) lowHistogramChart.destroy();
+    if (histogramChart) histogramChart.destroy();
 
-    const toggleHistogram = (histogram, emptyEl, canvasEl) => {
-        const hasData = histogram.hasData && histogram.counts.some(count => count > 0);
-        emptyEl.style.display = hasData ? 'none' : 'block';
-        canvasEl.style.display = hasData ? 'block' : 'none';
-        return hasData;
-    };
+    const hasData = (histogram.hasHigh && histogram.highCounts.some(count => count > 0))
+        || (histogram.hasLow && histogram.lowCounts.some(count => count > 0));
 
-    const hasHighData = toggleHistogram(highHistogram, highEmpty, highCanvas);
-    const hasLowData = toggleHistogram(lowHistogram, lowEmpty, lowCanvas);
+    emptyMessage.style.display = hasData ? 'none' : 'block';
+    histogramCanvas.style.display = hasData ? 'block' : 'none';
 
-    // If both histograms are missing data, avoid rendering empty Chart.js shells.
-    if (!hasHighData && !hasLowData) {
-        highHistogramChart = null;
-        lowHistogramChart = null;
+    if (!hasData) {
+        histogramChart = null;
         return;
     }
 
     const isMobile = window.innerWidth < 768;
     const fontSize = isMobile ? 10 : 12;
+    const maxCount = Math.max(0, ...histogram.highCounts, ...histogram.lowCounts);
 
-    const createHistogramConfig = (histogram, colors) => {
-        const maxCount = histogram.counts.length > 0 ? Math.max(...histogram.counts) : 0;
-
-        return {
-            type: 'bar',
-            data: {
-                labels: histogram.labels,
-                datasets: [{
-                    data: histogram.counts,
-                    backgroundColor: colors.background,
-                    borderColor: colors.border,
+    histogramChart = new Chart(histogramCtx, {
+        type: 'bar',
+        data: {
+            labels: histogram.labels,
+            datasets: [
+                {
+                    label: 'High Price',
+                    data: histogram.highCounts,
+                    backgroundColor: 'rgba(74, 222, 128, 0.6)',
+                    borderColor: '#4ade80',
                     borderWidth: 1.5,
-                    borderRadius: 6
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                        titleColor: '#f8fafc',
-                        bodyColor: '#94a3b8',
-                        borderColor: 'rgba(255, 255, 255, 0.1)',
-                        borderWidth: 1,
-                        padding: isMobile ? 8 : 12,
-                        titleFont: { size: fontSize + 2 },
-                        bodyFont: { size: fontSize }
+                    borderRadius: 6,
+                    hidden: !histogram.hasHigh
+                },
+                {
+                    label: 'Low Price',
+                    data: histogram.lowCounts,
+                    backgroundColor: 'rgba(244, 114, 182, 0.6)',
+                    borderColor: '#f472b6',
+                    borderWidth: 1.5,
+                    borderRadius: 6,
+                    hidden: !histogram.hasLow
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: {
+                        color: '#cbd5e1',
+                        font: { size: fontSize }
                     }
                 },
-                scales: {
-                    x: {
-                        ticks: { color: '#64748b', font: { size: fontSize } },
-                        grid: { display: false },
-                        stacked: false
-                    },
-                    y: {
-                        ticks: { color: '#64748b', font: { size: fontSize } },
-                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                        beginAtZero: true,
-                        suggestedMax: maxCount > 0 ? Math.ceil(maxCount * 1.1) : 1,
-                        grace: '5%'
-                    }
+                tooltip: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    titleColor: '#f8fafc',
+                    bodyColor: '#94a3b8',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1,
+                    padding: isMobile ? 8 : 12,
+                    titleFont: { size: fontSize + 2 },
+                    bodyFont: { size: fontSize }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: '#64748b', font: { size: fontSize } },
+                    grid: { display: false },
+                    stacked: false
+                },
+                y: {
+                    ticks: { color: '#64748b', font: { size: fontSize } },
+                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                    beginAtZero: true,
+                    suggestedMax: maxCount > 0 ? Math.ceil(maxCount * 1.1) : 1,
+                    grace: '5%'
                 }
             }
-        };
-    };
-
-    if (hasHighData) {
-        highHistogramChart = new Chart(highCtx, createHistogramConfig(highHistogram, {
-            background: 'rgba(74, 222, 128, 0.6)',
-            border: '#4ade80'
-        }));
-    } else {
-        highHistogramChart = null;
-    }
-
-    if (hasLowData) {
-        lowHistogramChart = new Chart(lowCtx, createHistogramConfig(lowHistogram, {
-            background: 'rgba(244, 114, 182, 0.6)',
-            border: '#f472b6'
-        }));
-    } else {
-        lowHistogramChart = null;
-    }
+        }
+    });
 }
 
 // AI Logic
