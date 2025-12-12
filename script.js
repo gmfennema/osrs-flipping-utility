@@ -1,12 +1,36 @@
-let currentItemId = 888; // Default: Mithril arrows
-let currentTimeRange = '24h';
-let viewMode = 'timeline'; // 'timeline' or 'time-of-day'
+let currentItemId = parseInt(localStorage.getItem('osrs_currentItemId')) || 888; // Default: Mithril arrows
+let currentTimeRange = localStorage.getItem('osrs_currentTimeRange') || '24h';
+let viewMode = localStorage.getItem('osrs_viewMode') || 'timeline'; // 'timeline' or 'time-of-day'
 let itemMapping = [];
 let latestPrices = {};
 let volumeData = {}; // Stores 24h volume
 let volume1hData = {}; // Stores 1h volume
 let chartInstance = null;
 let currentItemHistory = []; // Store history for trend calc
+
+function smoothSeries(data, key, windowSize = 1) {
+    if (windowSize <= 1 || data.length === 0) {
+        return data.map(point => point[key]);
+    }
+    const half = Math.floor(windowSize / 2);
+    return data.map((point, idx) => {
+        let sum = 0;
+        let count = 0;
+        for (let i = Math.max(0, idx - half); i <= Math.min(data.length - 1, idx + half); i++) {
+            const value = data[i][key];
+            if (value !== null && value !== undefined) {
+                sum += value;
+                count++;
+            }
+        }
+        return count > 0 ? sum / count : null;
+    });
+}
+
+function calculateNetSellPrice(price) {
+    if (typeof price !== 'number') return 0;
+    return price >= 50 ? Math.floor(price * 0.98) : price;
+}
 
 // Sort/Filter State
 let sortColumn = 'score'; // Default sort by AI Score
@@ -15,9 +39,10 @@ let sortDirection = 'desc';
 const API_BASE = 'https://prices.runescape.wiki/api/v1/osrs';
 
 // Chart.js configuration
-Chart.defaults.color = '#94a3b8';
-Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.05)';
+Chart.defaults.color = '#475569';
+Chart.defaults.borderColor = 'rgba(226, 232, 240, 0.7)';
 Chart.defaults.font.family = "'Outfit', sans-serif";
+Chart.defaults.font.size = 13;
 
 // Fetch item mapping on load
 async function fetchMapping() {
@@ -293,7 +318,8 @@ async function updateItemInfo(item) {
     if (prices) {
         const high = prices.high || 0;
         const low = prices.low || 0;
-        const margin = high - low;
+        const netHigh = calculateNetSellPrice(high);
+        const margin = netHigh - low;
         const roi = low > 0 ? (margin / low) * 100 : 0;
 
         // Get Volume for AI
@@ -306,17 +332,30 @@ async function updateItemInfo(item) {
         // Analyze Consistency
         const analysis = await analyzeVolumeConsistency(item.id);
 
-        const itemWithStats = { ...item, roi, volume, margin };
+        const itemWithStats = { ...item, roi, volume, margin, netHigh };
         aiScore = calculateAiScore(itemWithStats);
         aiReasoning = generateAiReasoning(itemWithStats, trend, analysis);
 
         document.getElementById('stat-high').textContent = high.toLocaleString();
+        document.getElementById('stat-net-high').textContent = netHigh.toLocaleString();
         document.getElementById('stat-low').textContent = low.toLocaleString();
-        document.getElementById('stat-margin').textContent = margin.toLocaleString();
-        document.getElementById('stat-roi').textContent = roi.toFixed(2) + '%';
-        document.getElementById('stat-limit').textContent = (item.limit || 'Unknown').toLocaleString();
+
+        const marginEl = document.getElementById('stat-margin');
+        marginEl.textContent = `${margin >= 0 ? '+' : ''}${margin.toLocaleString()}`;
+        marginEl.className = 'stat-value';
+        if (margin > 0) marginEl.classList.add('trend-up');
+        else if (margin < 0) marginEl.classList.add('trend-down');
+        else marginEl.classList.add('trend-flat');
+
+        const roiEl = document.getElementById('stat-roi');
+        roiEl.textContent = `${roi >= 0 ? '+' : ''}${roi.toFixed(2)}%`;
+        roiEl.className = 'stat-value';
+        if (roi > 0.5) roiEl.classList.add('trend-up');
+        else if (roi < -0.5) roiEl.classList.add('trend-down');
+        else roiEl.classList.add('trend-flat');
+
+        document.getElementById('stat-limit-display').textContent = (item.limit || 'Unknown').toLocaleString();
         document.getElementById('stat-avg-vol').textContent = Math.round(analysis.avg7d).toLocaleString();
-        document.getElementById('stat-avg-30d').textContent = Math.round(analysis.avg30d).toLocaleString();
         document.getElementById('stat-consistency').textContent = analysis.consistency;
 
         // Update Trend UI
@@ -328,7 +367,10 @@ async function updateItemInfo(item) {
         else trendEl.classList.add('trend-flat');
 
     } else {
-        ['stat-high', 'stat-low', 'stat-margin', 'stat-roi', 'stat-trend', 'stat-limit', 'stat-avg-vol', 'stat-avg-30d', 'stat-consistency'].forEach(id => document.getElementById(id).textContent = '--');
+        ['stat-high', 'stat-net-high', 'stat-low', 'stat-margin', 'stat-roi', 'stat-trend', 'stat-limit-display', 'stat-avg-vol', 'stat-consistency'].forEach(id => document.getElementById(id).textContent = '--');
+        document.getElementById('stat-margin').className = 'stat-value';
+        document.getElementById('stat-roi').className = 'stat-value';
+        document.getElementById('stat-trend').className = 'stat-value';
     }
 
     // Update AI Card
@@ -355,9 +397,9 @@ async function updateChart() {
 
     const ctx = document.getElementById('volumeChart').getContext('2d');
 
-    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-    gradient.addColorStop(0, 'rgba(56, 189, 248, 0.5)');
-    gradient.addColorStop(1, 'rgba(56, 189, 248, 0.0)');
+    const gradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height || 400);
+    gradient.addColorStop(0, 'rgba(37, 99, 235, 0.25)');
+    gradient.addColorStop(1, 'rgba(37, 99, 235, 0.02)');
 
     if (chartInstance) {
         chartInstance.destroy();
@@ -379,8 +421,12 @@ async function updateChart() {
     let volLabel = viewMode === 'time-of-day' ? 'Avg Volume' : 'Volume';
 
     const isMobile = window.innerWidth < 768;
-    const fontSize = isMobile ? 10 : 12;
-    const tooltipPadding = isMobile ? 8 : 12;
+    const fontSize = isMobile ? 11 : 13;
+    const tooltipPadding = isMobile ? 8 : 14;
+
+    const smoothingWindow = (viewMode === 'timeline' && currentTimeRange === '24h') ? 7 : 1;
+    const smoothedHigh = smoothSeries(chartData, 'priceHigh', smoothingWindow);
+    const smoothedLow = smoothSeries(chartData, 'priceLow', smoothingWindow);
 
     chartInstance = new Chart(ctx, {
         type: 'line',
@@ -389,57 +435,78 @@ async function updateChart() {
                 {
                     label: volLabel,
                     data: chartData.map(d => ({ x: d.x, y: d.volume })),
-                    borderColor: '#38bdf8',
+                    borderColor: '#2563eb',
                     backgroundColor: gradient,
-                    borderWidth: 2,
+                    borderWidth: 3,
                     fill: true,
                     yAxisID: 'y',
-                    tension: 0.4, // Smooth curves
-                    order: 2
+                    tension: 0.5,
+                    cubicInterpolationMode: 'monotone',
+                    spanGaps: true,
+                    pointRadius: 0,
+                    pointHoverRadius: 3,
+                    pointHoverBackgroundColor: '#2563eb',
+                    order: 3
                 },
                 {
                     label: 'Target Sell',
-                    data: chartData.map(d => ({ x: d.x, y: d.priceHigh })),
-                    borderColor: '#4ade80',
-                    borderWidth: 1.5, // Thinner, solid line
+                    data: chartData.map((d, idx) => ({ x: d.x, y: smoothedHigh[idx] })),
+                    borderColor: '#059669',
+                    borderWidth: 2.2,
                     pointRadius: 0,
+                    pointHoverRadius: 3,
                     yAxisID: 'y1',
-                    tension: 0.4,
-                    fill: {
-                        target: '+1', // Fill to the next dataset (Target Buy)
-                        above: 'rgba(74, 222, 128, 0.1)' // Green glow for profit zone
-                    },
+                    tension: 0.45,
+                    cubicInterpolationMode: 'monotone',
+                    spanGaps: true,
                     order: 1
                 },
                 {
                     label: 'Target Buy',
-                    data: chartData.map(d => ({ x: d.x, y: d.priceLow })),
-                    borderColor: '#f472b6',
-                    borderWidth: 1.5, // Thinner, solid line
+                    data: chartData.map((d, idx) => ({ x: d.x, y: smoothedLow[idx] })),
+                    borderColor: '#f97316',
+                    borderWidth: 2.2,
                     pointRadius: 0,
+                    pointHoverRadius: 3,
                     yAxisID: 'y1',
-                    tension: 0.4,
-                    order: 1
+                    tension: 0.45,
+                    cubicInterpolationMode: 'monotone',
+                    spanGaps: true,
+                    order: 2,
+                    fill: {
+                        target: '-1',
+                        above: 'rgba(16, 185, 129, 0.08)',
+                        below: 'transparent'
+                    }
                 }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            animation: {
+                duration: 600,
+                easing: 'easeOutQuart'
+            },
             interaction: {
                 intersect: false,
                 mode: 'index',
             },
             plugins: {
+                decimation: {
+                    enabled: true,
+                    algorithm: 'lttb',
+                    samples: 250
+                },
                 tooltip: {
-                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                    titleColor: '#f8fafc',
-                    bodyColor: '#94a3b8',
-                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    backgroundColor: '#ffffff',
+                    titleColor: '#0f172a',
+                    bodyColor: '#475569',
+                    borderColor: 'rgba(148, 163, 184, 0.4)',
                     borderWidth: 1,
                     padding: tooltipPadding,
                     displayColors: true,
-                    titleFont: { size: fontSize + 2 },
+                    titleFont: { size: fontSize + 1, weight: '600' },
                     bodyFont: { size: fontSize },
                     callbacks: {
                         label: function (context) {
@@ -463,7 +530,7 @@ async function updateChart() {
                 },
                 legend: {
                     labels: {
-                        color: '#94a3b8',
+                        color: '#475569',
                         font: {
                             family: "'Outfit', sans-serif",
                             size: fontSize
@@ -499,9 +566,9 @@ async function updateChart() {
                         displayFormats: displayFormat,
                         tooltipFormat: 'MMM d, h:mm a'
                     },
-                    grid: { display: false },
+                    grid: { color: 'rgba(226, 232, 240, 0.5)' },
                     ticks: {
-                        color: '#64748b',
+                        color: '#94a3b8',
                         font: { size: fontSize }
                     }
                 },
@@ -509,12 +576,12 @@ async function updateChart() {
                     type: 'linear',
                     display: true,
                     position: 'left',
-                    title: { display: !isMobile, text: 'Volume', color: '#38bdf8', font: { size: fontSize } },
-                    grid: { color: 'rgba(255, 255, 255, 0.03)' },
+                    title: { display: !isMobile, text: volLabel, color: '#2563eb', font: { size: fontSize } },
+                    grid: { color: 'rgba(226, 232, 240, 0.5)' },
                     beginAtZero: true,
                     grace: '5%',
                     ticks: {
-                        color: '#64748b',
+                        color: '#94a3b8',
                         font: { size: fontSize },
                         callback: function (value) {
                             if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
@@ -527,11 +594,11 @@ async function updateChart() {
                     type: 'linear',
                     display: true,
                     position: 'right',
-                    title: { display: !isMobile, text: 'Price (GP)', color: '#4ade80', font: { size: fontSize } },
+                    title: { display: !isMobile, text: 'Price (GP)', color: '#0f172a', font: { size: fontSize } },
                     grid: { drawOnChartArea: false },
                     grace: '5%',
                     ticks: {
-                        color: '#64748b',
+                        color: '#94a3b8',
                         font: { size: fontSize },
                         callback: function (value) {
                             if (value >= 1000000) return (value / 1000000).toFixed(2) + 'M';
@@ -551,7 +618,6 @@ function renderFlipTable() {
 
     // Get filter values
     const minVolume = parseInt(document.getElementById('filter-volume').value) || 0;
-    const minRoi = parseFloat(document.getElementById('filter-roi').value) || 0;
     const minMargin = parseInt(document.getElementById('filter-margin').value) || 0;
     const minLimit = parseInt(document.getElementById('filter-limit').value) || 0;
 
@@ -563,8 +629,11 @@ function renderFlipTable() {
         latestPrices[item.id].low
     ).map(item => {
         const prices = latestPrices[item.id];
-        const margin = prices.high - prices.low;
-        const roi = (margin / prices.low) * 100;
+        const highPrice = prices.high || 0;
+        const lowPrice = prices.low || 0;
+        const netSell = calculateNetSellPrice(highPrice);
+        const margin = netSell - lowPrice;
+        const roi = lowPrice > 0 ? (margin / lowPrice) * 100 : 0;
 
         // Get 24h volume
         const volInfo = volumeData[item.id];
@@ -577,13 +646,12 @@ function renderFlipTable() {
         const itemWithStats = { ...item, roi, volume, margin };
         const score = calculateAiScore(itemWithStats);
 
-        return { ...item, ...prices, margin, roi, volume, vol1h, score };
+        return { ...item, ...prices, netSell, margin, roi, volume, vol1h, score };
     });
 
     // Apply Filters
     flips = flips.filter(item =>
         item.volume >= minVolume &&
-        item.roi >= minRoi &&
         item.margin >= minMargin &&
         (item.limit || 0) >= minLimit
     );
@@ -624,6 +692,9 @@ function renderFlipTable() {
         if (item.vol1h * 24 > item.volume * 2) activityIcon = '⚡'; // Spike
         else if (item.vol1h === 0 && item.volume > 1000) activityIcon = '💤'; // Dormant
 
+        const marginClass = item.margin >= 0 ? 'positive' : 'negative';
+        const marginDisplay = `${item.margin >= 0 ? '+' : ''}${item.margin.toLocaleString()}`;
+
         tr.innerHTML = `
             <td>
                 <div class="item-cell">
@@ -632,19 +703,18 @@ function renderFlipTable() {
                 </div>
             </td>
             <td style="color: ${scoreColor}; font-weight: bold;">${item.score}</td>
-            <td>${(item.limit || 'Unknown').toLocaleString()}</td>
             <td>${item.high.toLocaleString()}</td>
             <td>${item.low.toLocaleString()}</td>
-            <td class="positive">+${item.margin.toLocaleString()}</td>
-            <td class="${item.roi > 5 ? 'positive' : ''}">${item.roi.toFixed(2)}%</td>
+            <td class="${marginClass}">${marginDisplay}</td>
             <td>${item.volume.toLocaleString()}</td>
-            <td>${item.vol1h.toLocaleString()} ${activityIcon}</td>
+            <td>${(item.limit || 'Unknown').toLocaleString()}</td>
         `;
 
         // Click to analyze
         tr.style.cursor = 'pointer';
         tr.onclick = () => {
             currentItemId = item.id;
+            localStorage.setItem('osrs_currentItemId', currentItemId);
             updateItemInfo(item);
             updateChart();
             // Switch tab
@@ -670,7 +740,7 @@ document.querySelectorAll('th[data-sort]').forEach(th => {
 });
 
 // Event Listeners for Filters
-['filter-volume', 'filter-roi', 'filter-margin', 'filter-limit'].forEach(id => {
+['filter-volume', 'filter-margin', 'filter-limit'].forEach(id => {
     document.getElementById(id).addEventListener('input', renderFlipTable);
 });
 
@@ -696,6 +766,7 @@ searchInput.addEventListener('input', (e) => {
             div.innerHTML = `<img src="${iconUrl}" alt="${item.name}"><span>${item.name}</span>`;
             div.onclick = () => {
                 currentItemId = item.id;
+                localStorage.setItem('osrs_currentItemId', currentItemId);
                 updateItemInfo(item);
                 updateChart();
                 searchInput.value = '';
@@ -723,19 +794,15 @@ document.querySelectorAll('.range-btn').forEach(btn => {
         document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentTimeRange = btn.dataset.range;
-
-        // Update whichever chart is active
-        if (document.getElementById('type-analysis-view').style.display !== 'none') {
-            updateTypeChart();
-        } else {
-            updateChart();
-        }
+        localStorage.setItem('osrs_currentTimeRange', currentTimeRange);
+        updateChart();
     });
 });
 
 // View Mode Toggle
 document.getElementById('mode-toggle').addEventListener('change', (e) => {
     viewMode = e.target.checked ? 'time-of-day' : 'timeline';
+    localStorage.setItem('osrs_viewMode', viewMode);
     updateChart();
 });
 
@@ -745,27 +812,15 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
 
-        document.querySelectorAll('.view-section').forEach(el => el.style.display = 'none');
-        document.getElementById(`${btn.dataset.tab}-view`).style.display = 'block';
+        document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+        const targetView = document.getElementById(`${btn.dataset.tab}-view`);
+        if (targetView) targetView.classList.add('active');
 
-        // Toggle Global Search Visibility
-        const globalSearch = document.querySelector('header .search-container');
-        if (btn.dataset.tab === 'type-analysis') {
-            globalSearch.style.display = 'none';
-        } else {
-            globalSearch.style.display = 'block';
-        }
+        // Save active tab to localStorage
+        localStorage.setItem('osrs_activeTab', btn.dataset.tab);
 
         if (btn.dataset.tab === 'flipper') {
             renderFlipTable();
-        } else if (btn.dataset.tab === 'type-analysis') {
-            // If we have a query, ensure chart is rendered/updated
-            if (currentTypeQuery) {
-                // Small delay to ensure container is visible for Chart.js
-                setTimeout(() => {
-                    if (typeChartInstance) typeChartInstance.resize();
-                }, 50);
-            }
         }
     });
 });
@@ -776,6 +831,23 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     await fetchLatestPrices();
     await fetch24hVolume();
     await fetch1hVolume();
+
+    // Restore UI state from localStorage
+    // Set active time range button
+    document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+    const activeRangeBtn = document.querySelector(`.range-btn[data-range="${currentTimeRange}"]`);
+    if (activeRangeBtn) activeRangeBtn.classList.add('active');
+
+    // Set view mode toggle
+    const modeToggle = document.getElementById('mode-toggle');
+    if (modeToggle) modeToggle.checked = (viewMode === 'time-of-day');
+
+    // Restore active tab
+    const savedTab = localStorage.getItem('osrs_activeTab');
+    if (savedTab) {
+        const tabBtn = document.querySelector(`.nav-btn[data-tab="${savedTab}"]`);
+        if (tabBtn) tabBtn.click();
+    }
 
     // Set initial item info with prices
     const initialItem = itemMapping.find(i => i.id === currentItemId);
@@ -793,275 +865,6 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
         clearTimeout(resizeTimer);
         resizeTimer = setTimeout(() => {
             updateChart();
-            if (typeChartInstance) updateTypeChart(); // Update type chart on resize too
         }, 250);
     });
 })();
-
-// --- Item Type Analysis Logic ---
-
-let typeChartInstance = null;
-let currentTypeQuery = '';
-let currentTypeData = null; // Store aggregated data
-
-// Search Input Listener
-const typeSearchInput = document.getElementById('type-search');
-const typeSearchBtn = document.getElementById('type-search-btn');
-
-function triggerTypeSearch() {
-    const query = typeSearchInput.value.trim();
-    if (query.length > 2) {
-        analyzeItemType(query);
-    } else {
-        alert("Please enter at least 3 characters.");
-    }
-}
-
-typeSearchInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        triggerTypeSearch();
-    }
-});
-
-typeSearchBtn.addEventListener('click', triggerTypeSearch);
-
-async function analyzeItemType(query) {
-    currentTypeQuery = query;
-    const statsContainer = document.getElementById('type-stats');
-    const btn = document.getElementById('type-search-btn');
-
-    statsContainer.style.display = 'none'; // Hide while loading
-    const originalBtnText = btn.textContent;
-    btn.textContent = "Loading...";
-    btn.disabled = true;
-
-    try {
-        // 1. Find matching items
-        const matches = itemMapping.filter(item => item.name.toLowerCase().includes(query.toLowerCase()));
-
-        if (matches.length === 0) {
-            alert("No items found matching that type.");
-            return;
-        }
-
-        // 2. Filter for active items (must have 24h volume) and Sort by Volume
-        // We limit to top 20 to avoid API spam and keep performance high
-        const activeMatches = matches
-            .map(item => {
-                const volInfo = volumeData[item.id];
-                const volume = volInfo ? (volInfo.highPriceVolume + volInfo.lowPriceVolume) : 0;
-                return { ...item, volume };
-            })
-            .filter(item => item.volume > 0)
-            .sort((a, b) => b.volume - a.volume)
-            .slice(0, 20);
-
-        if (activeMatches.length === 0) {
-            alert("No active items found for this type.");
-            return;
-        }
-
-        // 3. Fetch Timeseries Data for all top items
-        // We'll use the current global `currentTimeRange`
-        const promises = activeMatches.map(item => fetchData(item.id, currentTimeRange));
-        const allSeries = await Promise.all(promises);
-
-        // 4. Aggregate Data
-        // We need to combine volumes and calculate avg price at each timestamp
-        // Since timestamps might not align perfectly, we'll bucket them.
-
-        // Determine bucket size based on range (same logic as processData)
-        let bucketSize = 300; // 5m
-        if (currentTimeRange === '7d') bucketSize = 3600; // 1h
-        if (currentTimeRange === '30d') bucketSize = 21600; // 6h
-
-        const aggregatedMap = new Map(); // timestamp -> { totalVol, totalPriceVol, count }
-
-        allSeries.forEach((series, index) => {
-            if (!series) return;
-            series.forEach(d => {
-                // Normalize timestamp to bucket
-                const timestamp = Math.floor(d.timestamp / bucketSize) * bucketSize;
-
-                if (!aggregatedMap.has(timestamp)) {
-                    aggregatedMap.set(timestamp, { totalVol: 0, totalPriceSum: 0, totalVolForPrice: 0 });
-                }
-
-                const bucket = aggregatedMap.get(timestamp);
-                const vol = (d.highPriceVolume || 0) + (d.lowPriceVolume || 0);
-                const price = d.avgHighPrice || d.avgLowPrice || 0;
-
-                bucket.totalVol += vol;
-                if (price > 0 && vol > 0) {
-                    bucket.totalPriceSum += (price * vol);
-                    bucket.totalVolForPrice += vol;
-                }
-            });
-        });
-
-        // Convert map to array and sort
-        const aggregatedData = Array.from(aggregatedMap.entries())
-            .map(([timestamp, data]) => ({
-                x: timestamp * 1000,
-                volume: data.totalVol,
-                price: data.totalVolForPrice > 0 ? data.totalPriceSum / data.totalVolForPrice : 0
-            }))
-            .sort((a, b) => a.x - b.x);
-
-        currentTypeData = aggregatedData; // Store for re-rendering
-
-        // 5. Update UI
-        renderTypeChart(aggregatedData);
-        updateTypeStats(activeMatches, aggregatedData);
-        renderTypeTable(activeMatches);
-
-        statsContainer.style.display = 'grid';
-    } catch (error) {
-        console.error("Type Analysis Error:", error);
-        alert("An error occurred while analyzing.");
-    } finally {
-        btn.textContent = originalBtnText;
-        btn.disabled = false;
-    }
-}
-
-function renderTypeChart(data) {
-    const ctx = document.getElementById('typeChart').getContext('2d');
-
-    if (typeChartInstance) {
-        typeChartInstance.destroy();
-    }
-
-    const isMobile = window.innerWidth < 768;
-    const fontSize = isMobile ? 10 : 12;
-
-    // Determine time unit
-    let timeUnit = 'hour';
-    let displayFormat = { hour: 'h a' };
-    if (currentTimeRange === '7d' || currentTimeRange === '30d') {
-        timeUnit = 'day';
-        displayFormat = { day: 'MMM d' };
-    }
-
-    typeChartInstance = new Chart(ctx, {
-        type: 'line',
-        data: {
-            datasets: [
-                {
-                    label: 'Total Volume',
-                    data: data.map(d => ({ x: d.x, y: d.volume })),
-                    borderColor: '#38bdf8',
-                    backgroundColor: 'rgba(56, 189, 248, 0.1)',
-                    borderWidth: 2,
-                    fill: true,
-                    yAxisID: 'y',
-                    tension: 0.4
-                },
-                {
-                    label: 'Avg Price',
-                    data: data.map(d => ({ x: d.x, y: d.price })),
-                    borderColor: '#facc15', // Yellow for price
-                    borderWidth: 2,
-                    yAxisID: 'y1',
-                    tension: 0.4,
-                    pointRadius: 0
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                intersect: false,
-                mode: 'index',
-            },
-            plugins: {
-                tooltip: {
-                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                    titleColor: '#f8fafc',
-                    bodyColor: '#94a3b8',
-                    borderColor: 'rgba(255, 255, 255, 0.1)',
-                    borderWidth: 1,
-                    padding: 10,
-                    titleFont: { size: fontSize + 2 },
-                    bodyFont: { size: fontSize }
-                },
-                legend: {
-                    labels: {
-                        color: '#94a3b8',
-                        font: { family: "'Outfit', sans-serif", size: fontSize }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    type: 'time',
-                    time: {
-                        unit: timeUnit,
-                        displayFormats: displayFormat
-                    },
-                    grid: { display: false },
-                    ticks: { color: '#64748b', font: { size: fontSize } }
-                },
-                y: {
-                    type: 'linear',
-                    display: true,
-                    position: 'left',
-                    title: { display: !isMobile, text: 'Total Volume', color: '#38bdf8', font: { size: fontSize } },
-                    grid: { color: 'rgba(255, 255, 255, 0.03)' },
-                    ticks: { color: '#64748b', font: { size: fontSize } }
-                },
-                y1: {
-                    type: 'linear',
-                    display: true,
-                    position: 'right',
-                    title: { display: !isMobile, text: 'Avg Price', color: '#facc15', font: { size: fontSize } },
-                    grid: { drawOnChartArea: false },
-                    ticks: { color: '#64748b', font: { size: fontSize } }
-                }
-            }
-        }
-    });
-}
-
-function updateTypeStats(items, data) {
-    // Calculate totals from the aggregated data
-    const totalVolume = data.reduce((sum, d) => sum + d.volume, 0);
-    const avgPrice = data.length > 0 ? data[data.length - 1].price : 0; // Current avg price
-
-    document.getElementById('type-total-vol').textContent = totalVolume.toLocaleString();
-    document.getElementById('type-avg-price').textContent = Math.round(avgPrice).toLocaleString();
-    document.getElementById('type-item-count').textContent = items.length;
-}
-
-function renderTypeTable(items) {
-    const tbody = document.querySelector('#type-table tbody');
-    tbody.innerHTML = '';
-
-    items.forEach(item => {
-        const tr = document.createElement('tr');
-        const iconUrl = `https://oldschool.runescape.wiki/images/${item.icon.replace(/ /g, '_')}`;
-
-        // Get latest price
-        const price = latestPrices[item.id] ? latestPrices[item.id].high : 0;
-
-        tr.innerHTML = `
-            <td>
-                <div class="item-cell">
-                    <img src="${iconUrl}" alt="${item.name}">
-                    <span>${item.name}</span>
-                </div>
-            </td>
-            <td>${price.toLocaleString()}</td>
-            <td>${item.volume.toLocaleString()}</td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-// Update Type Chart when time range changes (if active)
-function updateTypeChart() {
-    if (currentTypeQuery && document.getElementById('type-analysis-view').style.display !== 'none') {
-        analyzeItemType(currentTypeQuery);
-    }
-}
