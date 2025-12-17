@@ -316,11 +316,21 @@ async function updateItemInfo(item) {
     let trend = 0;
 
     if (prices) {
-        const high = prices.high || 0;
-        const low = prices.low || 0;
-        const netHigh = calculateNetSellPrice(high);
-        const margin = netHigh - low;
-        const roi = low > 0 ? (margin / low) * 100 : 0;
+        // Fix: Ensure Buy <= Sell by using Min/Max. API can sometimes return Low > High in volatile markets.
+        const rawHigh = prices.high || 0;
+        const rawLow = prices.low || 0;
+
+        const effectiveHigh = Math.max(rawHigh, rawLow);
+        const effectiveLow = Math.min(rawHigh, rawLow);
+
+        const netHigh = calculateNetSellPrice(effectiveHigh);
+        const margin = netHigh - effectiveLow;
+        const roi = effectiveLow > 0 ? (margin / effectiveLow) * 100 : 0;
+
+        // Display raw high/low just in case, or use effective? 
+        // Logic says we want "Target Buy" to be the low one.
+        const high = effectiveHigh;
+        const low = effectiveLow;
 
         // Get Volume for AI
         const volInfo = volumeData[item.id];
@@ -629,8 +639,13 @@ function renderFlipTable() {
         latestPrices[item.id].low
     ).map(item => {
         const prices = latestPrices[item.id];
-        const highPrice = prices.high || 0;
-        const lowPrice = prices.low || 0;
+        // Fix: Ensure Buy <= Sell
+        const rawHigh = prices.high || 0;
+        const rawLow = prices.low || 0;
+
+        const highPrice = Math.max(rawHigh, rawLow);
+        const lowPrice = Math.min(rawHigh, rawLow);
+
         const netSell = calculateNetSellPrice(highPrice);
         const margin = netSell - lowPrice;
         const roi = lowPrice > 0 ? (margin / lowPrice) * 100 : 0;
