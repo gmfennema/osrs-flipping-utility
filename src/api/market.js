@@ -115,7 +115,62 @@ export async function loadConsistencyHistory(id) {
     });
 }
 
+/**
+ * 6h history for the edge model. Same endpoint as the consistency history, but
+ * kept in its own cache with a long TTL: the planner asks for dozens of items
+ * at once and the 6h buckets only roll four times a day, so refetching them on
+ * every visit would be pure waste.
+ */
+const edgeCache = new MemoCache(45 * 60_000);
+
+export async function loadEdgeHistory(id) {
+    return edgeCache.resolve(`edge:${id}`, async () => {
+        try {
+            const json = await getJson(`/timeseries?timestep=6h&id=${id}`);
+            return json.data ?? [];
+        } catch (error) {
+            console.error('Edge history fetch failed', id, error);
+            return null;
+        }
+    });
+}
+
+/**
+ * Fetch 6h history for many items with bounded concurrency.
+ *
+ * The planner needs per-item history, which means one request per candidate.
+ * The wiki asks for restraint, so this runs a small worker pool rather than
+ * firing sixty requests at once, and reports progress so the UI can show it
+ * instead of appearing hung.
+ *
+ * @param {number[]} ids
+ * @param {(done: number, total: number) => void} [onProgress]
+ * @param {{concurrency?: number, signal?: {aborted: boolean}}} [options]
+ * @returns {Promise<Map<number, Array|null>>}
+ */
+export async function loadEdgeHistories(ids, onProgress = () => {}, options = {}) {
+    const { concurrency = 4, signal = null } = options;
+    const results = new Map();
+    const queue = [...ids];
+    const total = queue.length;
+    let done = 0;
+
+    async function worker() {
+        while (queue.length) {
+            if (signal?.aborted) return;
+            const id = queue.shift();
+            results.set(id, await loadEdgeHistory(id));
+            done++;
+            onProgress(done, total);
+        }
+    }
+
+    await Promise.all(Array.from({ length: Math.min(concurrency, total) }, worker));
+    return results;
+}
+
 export function clearTimeseriesCaches() {
     timeseriesCache.clear();
     consistencyCache.clear();
+    edgeCache.clear();
 }

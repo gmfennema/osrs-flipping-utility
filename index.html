@@ -36,6 +36,7 @@
             <nav class="flex flex-wrap justify-center gap-3">
                 <button class="nav-btn active" data-tab="analyzer">Market Pulse</button>
                 <button class="nav-btn" data-tab="flipper">Flip Finder</button>
+                <button class="nav-btn" data-tab="planner">48h Plan</button>
             </nav>
 
             <main class="space-y-8">
@@ -264,6 +265,57 @@
                                 <tbody></tbody>
                             </table>
                         </div>
+                    </div>
+                </section>
+
+                <section id="planner-view" class="view-section">
+                    <div
+                        class="rounded-3xl border border-white/80 bg-white/80 p-6 sm:p-8 shadow-xl shadow-slate-200/70 space-y-6">
+                        <div class="flex flex-wrap items-start justify-between gap-4">
+                            <div class="space-y-2">
+                                <p class="text-xs font-semibold uppercase tracking-[0.4em] text-slate-400">48 Hour Plan
+                                </p>
+                                <h2 class="text-2xl font-semibold text-ink">Buy this basket, set these asks</h2>
+                                <p class="text-slate-500 max-w-2xl">Ranked by expected return per gp, then allocated
+                                    across your whole bankroll. No single F2P item can absorb 9m, so the plan is always
+                                    a basket — that breadth is the strategy, not a hedge.</p>
+                            </div>
+                            <button id="plan-refresh" class="plan-refresh-btn">Rebuild plan</button>
+                        </div>
+
+                        <p class="tax-note" id="plan-status">Open this tab to build your plan.</p>
+
+                        <div id="plan-summary"></div>
+
+                        <div class="table-container">
+                            <table id="plan-table">
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th title="Expected return per gp of capital over 48h, scaled 0-100">Edge</th>
+                                        <th title="Place your buy offer here">Bid</th>
+                                        <th title="Place your sell offer here">Ask</th>
+                                        <th title="Post-tax profit per unit">Margin</th>
+                                        <th title="Post-tax return per unit">ROI</th>
+                                        <th title="Units to buy across the limit windows you will use">Qty</th>
+                                        <th title="Gold this position ties up">Spend</th>
+                                        <th title="Expected post-tax profit over 48h, discounted by the fill rate">Profit</th>
+                                        <th title="How often this item's price has actually reached your ask in the last week">Fill</th>
+                                        <th title="Units traded on the thinner side of the book over 48h">Thin flow</th>
+                                        <th title="Where the price sits in its 30-day range. Lower is better.">30d pos
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+
+                        <div id="plan-rejected" class="plan-rejected"></div>
+
+                        <p class="tax-note">Margins include the 2% GE tax, which does not apply below 50gp — that
+                            exemption is why cheap high-volume items dominate the plan. <strong>L</strong> = buy-limit
+                            bound, <strong>F</strong> = flow bound, <strong>$</strong> = bankroll bound,
+                            <strong>%</strong> = per-item concentration cap.</p>
                     </div>
                 </section>
             </main>

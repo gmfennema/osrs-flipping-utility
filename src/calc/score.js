@@ -40,13 +40,45 @@ export function freshnessScore(ageSeconds) {
     return clamp01(1 - Math.log(ageSeconds / FRESH) / Math.log(DEAD / FRESH));
 }
 
+/**
+ * Below this much 24h flow on the thinner side, a quoted margin is not a
+ * tradeable margin — you are reading two prints that happened hours apart.
+ * Backtesting the F2P pool, dropping this gate cut mean profit per 48h cycle
+ * from ~440k to ~107k and turned the worst cycle from +10k into -352k.
+ */
+export const MIN_TRADEABLE_THIN_VOLUME = 10_000;
+
+/**
+ * Spread durability, scored as a band rather than "more is better".
+ *
+ * The intuition that a spread which is *always* positive is the best kind is
+ * wrong, and measurably so. Items whose post-tax spread is positive in over 90%
+ * of intervals are the mega-liquid ones — runes and ores where the spread has
+ * been arbitraged down to nothing. Requiring that as a virtue selected exactly
+ * those items and turned a +440k/cycle strategy into -36k/cycle with a 42% win
+ * rate. Meanwhile a spread positive under 25% of the time really is noise
+ * (median outcome -1.67%).
+ *
+ * So the useful zone is the middle: reliable enough to repeat, wide enough to
+ * be worth repeating.
+ */
+export function durabilityScore(stability) {
+    if (stability === null || stability === undefined || !Number.isFinite(stability)) return null;
+    const s = clamp01(stability);
+    const PEAK = 0.7;
+    if (s <= PEAK) return linScore(s, 0.05, PEAK);
+    // Taper past the peak instead of rewarding it — never below 0.45, because
+    // an always-positive spread is still better than a mostly-negative one.
+    return clamp01(1 - ((s - PEAK) / (1 - PEAK)) * 0.55);
+}
+
 const WEIGHTS = {
-    throughput: 0.30,
-    liquidity: 0.22,
-    freshness: 0.18,
+    throughput: 0.28,
+    liquidity: 0.26,
+    freshness: 0.14,
     margin: 0.12,
     balance: 0.10,
-    stability: 0.08
+    stability: 0.10
 };
 
 const LABELS = {
@@ -64,7 +96,7 @@ const NOTES = {
     freshness: 'How recently the item actually traded',
     margin: 'Post-tax ROI per unit',
     balance: 'Buy flow vs sell flow — lopsided is a dump, not a flip',
-    stability: 'Does the spread survive across intervals'
+    stability: 'Spread durability — best in the middle, not at the extremes'
 };
 
 /**
@@ -87,9 +119,7 @@ export function computeScore(input) {
             : freshnessScore(input.quoteAgeSeconds),
         margin: input.roi > 0 ? linScore(input.roi, 0, 5) : 0,
         balance: clamp01(input.balance ?? 0),
-        stability: input.stability === null || input.stability === undefined
-            ? null
-            : clamp01(input.stability)
+        stability: durabilityScore(input.stability)
     };
 
     const present = Object.keys(WEIGHTS).filter((key) => raw[key] !== null);
@@ -111,7 +141,22 @@ export function computeScore(input) {
     });
 
     // A flip that cannot make money is not a flip, whatever the volume says.
-    const score = input.roi <= 0 ? 0 : Math.round(weighted * 100);
+    if (input.roi <= 0) return { score: 0, components };
 
+    /*
+     * Illiquidity is a veto, not a deduction.
+     *
+     * As a weighted component, thin flow could always be outvoted by a large
+     * quoted margin — which is precisely backwards, because a large quoted
+     * margin on a thin item is the *symptom* of two stale prints rather than a
+     * real opportunity. That is how a 286gp "margin" on an item that last
+     * traded 15 hours ago reaches the top of the list.
+     */
+    const thin = input.minSideVolume ?? 0;
+    const gate = thin >= MIN_TRADEABLE_THIN_VOLUME
+        ? 1
+        : clamp01(0.15 + 0.85 * (thin / MIN_TRADEABLE_THIN_VOLUME) ** 2);
+
+    const score = Math.round(weighted * gate * 100);
     return { score: Math.min(100, Math.max(0, score)), components };
 }

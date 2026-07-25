@@ -71,6 +71,42 @@ describe('computeScore', () => {
         expect(fragile).toBeLessThan(durable);
     });
 
+    /*
+     * Spread durability is a band, not a ladder. Measured over 91 days of F2P
+     * history, requiring a spread that is positive in over 90% of intervals
+     * selects the mega-liquid items whose spread has been arbitraged to nothing,
+     * and it turned a +440k/cycle strategy into -36k/cycle. So a perfectly
+     * reliable spread has to score *below* a merely reliable one.
+     */
+    it('does not reward a perfectly reliable spread over a merely reliable one', () => {
+        const useful = computeScore({ ...healthy, stability: 0.7 }).score;
+        const suspiciouslyPerfect = computeScore({ ...healthy, stability: 1 }).score;
+        expect(suspiciouslyPerfect).toBeLessThan(useful);
+    });
+
+    it('still prefers a reliable spread to a mostly-negative one', () => {
+        const perfect = computeScore({ ...healthy, stability: 1 }).score;
+        const noise = computeScore({ ...healthy, stability: 0.1 }).score;
+        expect(perfect).toBeGreaterThan(noise);
+    });
+
+    /*
+     * Illiquidity vetoes rather than deducts. A wide quoted margin on a thin
+     * item is the symptom of two stale prints, so it must not be able to
+     * outvote the thin volume that produced it.
+     */
+    it('gates thin items no matter how good every other component looks', () => {
+        const liquid = computeScore({ ...healthy, minSideVolume: 200_000 }).score;
+        const thin = computeScore({ ...healthy, minSideVolume: 400, roi: 200 }).score;
+        expect(thin).toBeLessThan(liquid * 0.4);
+    });
+
+    it('applies no liquidity penalty once the item genuinely trades', () => {
+        const atGate = computeScore({ ...healthy, minSideVolume: 10_000 });
+        const wellOver = computeScore({ ...healthy, minSideVolume: 10_001 });
+        expect(atGate.score).toBe(wellOver.score);
+    });
+
     it('penalises low throughput even when volume is huge', () => {
         const high = computeScore(healthy).score;
         const low = computeScore({ ...healthy, gpPerHour: 5_000 }).score;
@@ -90,11 +126,19 @@ describe('computeScore', () => {
     });
 
     it('keeps the score inside 0..100', () => {
+        // stability sits at the peak of the durability band; 1.0 deliberately
+        // scores lower, so it could never reach 100.
         const maxed = computeScore({
             gpPerHour: 1e12, minSideVolume: 1e9, roi: 500, balance: 1,
-            quoteAgeSeconds: 0, stability: 1
+            quoteAgeSeconds: 0, stability: 0.7
         });
         expect(maxed.score).toBe(100);
+
+        const absurd = computeScore({
+            gpPerHour: 1e18, minSideVolume: 1e15, roi: 1e6, balance: 5,
+            quoteAgeSeconds: 0, stability: 0.7
+        });
+        expect(absurd.score).toBeLessThanOrEqual(100);
     });
 
     it('exposes a labelled breakdown that sums to the score', () => {

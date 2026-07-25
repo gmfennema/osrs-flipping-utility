@@ -9,6 +9,7 @@ import { loadMapping, loadLatest, loadVolume } from './api/market.js';
 import { showItem, refreshCurrentSnapshot, redrawChart } from './ui/analyzer.js';
 import { renderFlipTable, initFlipControls, resetFlipTable } from './ui/flipTable.js';
 import { initSearch } from './ui/search.js';
+import { initPlanner, renderPlan, invalidatePlan } from './ui/planner.js';
 import { startAutoRefresh } from './refresh.js';
 
 function initTabs() {
@@ -22,6 +23,9 @@ function initTabs() {
 
             setActiveTab(btn.dataset.tab);
             if (btn.dataset.tab === 'flipper') renderFlipTable();
+            // The plan costs one request per candidate, so it is built on demand
+            // rather than on boot.
+            if (btn.dataset.tab === 'planner') renderPlan();
         });
     });
 }
@@ -98,11 +102,13 @@ async function boot() {
     }
 
     initFlipControls();
+    initPlanner();
     restoreControlState();
 
     if (!getItem(state.currentItemId)) state.currentItemId = 888;
     showItem(state.currentItemId);
     if (state.activeTab === 'flipper') renderFlipTable();
+    if (state.activeTab === 'planner') renderPlan();
 
     startAutoRefresh(({ volumesRefreshed }) => {
         refreshCurrentSnapshot();
@@ -110,6 +116,9 @@ async function boot() {
         // A fresh mapping is never needed mid-session, but stale volume windows
         // change the sort order enough to be worth a clean rebuild.
         if (volumesRefreshed && state.activeTab !== 'flipper') resetFlipTable();
+        // Volume windows feed the shortlist, so the cached plan is stale once
+        // they move. The 6h history behind it is not refetched.
+        if (volumesRefreshed) invalidatePlan();
     });
 
     let resizeTimer;
