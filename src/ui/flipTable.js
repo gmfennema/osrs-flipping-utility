@@ -71,9 +71,10 @@ function readFilters() {
         minVolume: num('filter-volume'),
         minMargin: num('filter-margin'),
         minLimit: num('filter-limit'),
+        // Entered in days, compared against cycleHours.
         maxCycleHours: (() => {
-            const raw = parseFloat(document.getElementById('filter-cycle')?.value);
-            return Number.isFinite(raw) && raw > 0 ? raw : Infinity;
+            const days = parseFloat(document.getElementById('filter-cycle')?.value);
+            return Number.isFinite(days) && days > 0 ? days * 24 : Infinity;
         })(),
         maxAgeMinutes: (() => {
             const raw = parseInt(document.getElementById('filter-age')?.value, 10);
