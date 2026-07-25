@@ -27,12 +27,24 @@ export function pct(value, digits = 2) {
     return `${value >= 0 ? '+' : ''}${value.toFixed(digits)}%`;
 }
 
-/** "2.4h", "18m", "> 24h" for fill-time estimates. */
+/**
+ * Fill-time estimates: "18m", "2.4h", "3.5d", "27d", ">50d".
+ *
+ * Most illiquid items land somewhere between one and several weeks, so
+ * collapsing everything past a day into ">24h" hid the difference between a
+ * two-day flip and a two-month one. Days are only capped at 50, past which the
+ * exact figure stops meaning anything.
+ */
+export const MAX_DISPLAY_DAYS = 50;
+
 export function hours(value) {
     if (!Number.isFinite(value)) return '∞';
-    if (value >= 24) return '>24h';
-    if (value >= 1) return `${value.toFixed(1)}h`;
-    return `${Math.max(1, Math.round(value * 60))}m`;
+    if (value < 1) return `${Math.max(1, Math.round(value * 60))}m`;
+    if (value < 24) return `${value.toFixed(1)}h`;
+
+    const days = value / 24;
+    if (days > MAX_DISPLAY_DAYS) return `>${MAX_DISPLAY_DAYS}d`;
+    return days < 10 ? `${days.toFixed(1)}d` : `${Math.round(days)}d`;
 }
 
 /** "12s ago", "4m ago", "3h ago". */
