@@ -7,50 +7,31 @@
     <title>OSRS Market Pulse</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script>
-        window.tailwind = window.tailwind || {};
-        window.tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand: '#2563eb',
-                        brandSoft: '#dbeafe',
-                        ink: '#0f172a'
-                    },
-                    fontFamily: {
-                        sans: ['Outfit', 'sans-serif']
-                    }
-                }
-            }
-        };
-    </script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script
-        src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
 </head>
 
 <body class="font-sans bg-slate-100 text-ink">
     <div class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
-        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
             <header class="text-center space-y-4">
                 <p class="text-xs tracking-[0.3em] uppercase text-slate-400">Runescape GE Companion</p>
                 <h1 class="text-4xl sm:text-5xl font-semibold tracking-tight text-ink">
                     OSRS Market <span class="text-brand">Pulse</span>
                 </h1>
                 <p class="text-lg text-slate-500 max-w-2xl mx-auto">
-                    Real-time price and volume intelligence for Old School RuneScape's busiest trades.
+                    Real-time price, volume and profitability intelligence for Old School RuneScape's busiest trades.
                 </p>
                 <div class="flex justify-center pt-2">
                     <div class="search-container w-full max-w-xl">
                         <input type="text" id="item-search" placeholder="Search for an item..." autocomplete="off"
-                            class="w-full rounded-2xl border border-slate-200 bg-white/90 px-5 py-3 text-base shadow-lg shadow-slate-200/80 focus:border-brand focus:ring-4 focus:ring-brandSoft" />
+                            class="w-full rounded-2xl border border-slate-200 bg-white/90 px-5 py-3 text-base shadow-lg shadow-slate-200/80 focus:border-brand focus:ring-4 focus:ring-brand-soft" />
                         <div id="search-results" class="search-results"></div>
                     </div>
                 </div>
             </header>
+
+            <p id="load-error" class="error-banner" hidden></p>
 
             <nav class="flex flex-wrap justify-center gap-3">
                 <button class="nav-btn active" data-tab="analyzer">Market Pulse</button>
@@ -63,13 +44,12 @@
                         class="rounded-3xl border border-white/80 bg-white/80 p-6 sm:p-8 shadow-xl shadow-slate-200/70 space-y-8">
                         <div class="card-header flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
                             <div class="item-info">
-                                <img id="item-icon"
-                                    src="https://oldschool.runescape.wiki/images/Mithril_arrow.png?e94df"
+                                <img id="item-icon" src="https://oldschool.runescape.wiki/images/Mithril_arrow.png"
                                     alt="Mithril arrow">
                                 <div>
                                     <p class="text-xs font-semibold uppercase tracking-[0.4em] text-slate-400">Tracking
                                     </p>
-                                    <h2 id="item-name" class="text-2xl font-semibold text-ink">Mithril Arrows</h2>
+                                    <h2 id="item-name" class="text-2xl font-semibold text-ink">Loading…</h2>
                                 </div>
                             </div>
                             <div class="controls flex flex-col gap-4 w-full md:w-auto">
@@ -82,8 +62,8 @@
                                         </label>
                                         <span class="toggle-label">Time of Day</span>
                                     </div>
-                                    <div class="status-indicator">
-                                        <span class="dot"></span> Live Data
+                                    <div class="status-indicator" id="live-status" data-state="loading">
+                                        <span class="dot"></span> <span class="status-text">Loading…</span>
                                     </div>
                                 </div>
                                 <div class="time-ranges justify-start sm:justify-end">
@@ -95,63 +75,130 @@
                             </div>
                         </div>
 
-                        <div class="stats-grid">
-                            <div class="stat-card">
-                                <span class="stat-label" title="Original Grand Exchange sell price before tax">Sell
-                                    (pre-tax)</span>
-                                <span class="stat-value" id="stat-high">--</span>
-                            </div>
-                            <div class="stat-card">
-                                <span class="stat-label" title="After tax amount you actually receive">Net Sell</span>
-                                <span class="stat-value" id="stat-net-high">--</span>
-                            </div>
-                            <div class="stat-card">
-                                <span class="stat-label">Target Buy Price</span>
-                                <span class="stat-value" id="stat-low">--</span>
-                            </div>
-                            <div class="stat-card">
-                                <span class="stat-label">Net Margin</span>
-                                <span class="stat-value" id="stat-margin">--</span>
-                            </div>
-                            <div class="stat-card">
-                                <span class="stat-label">Net ROI</span>
-                                <span class="stat-value" id="stat-roi">--</span>
-                            </div>
-                            <div class="stat-card">
-                                <span class="stat-label">12h Trend</span>
-                                <span class="stat-value" id="stat-trend">--</span>
-                            </div>
-                            <div class="stat-card">
-                                <span class="stat-label">7d Avg Vol</span>
-                                <span class="stat-value" id="stat-avg-vol">--</span>
-                            </div>
-                            <div class="stat-card">
-                                <span class="stat-label">GE Limit</span>
-                                <span class="stat-value" id="stat-limit-display">--</span>
-                            </div>
-                            <div class="stat-card">
-                                <span class="stat-label">Consistency</span>
-                                <span class="stat-value" id="stat-consistency">--</span>
+                        <div>
+                            <p class="section-label">Prices</p>
+                            <div class="stats-grid">
+                                <div class="stat-card">
+                                    <span class="stat-label" title="Grand Exchange sell price before tax">Sell
+                                        (pre-tax)</span>
+                                    <span class="stat-value" id="stat-high">--</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label" title="What you actually receive after the 2% tax">Net
+                                        Sell</span>
+                                    <span class="stat-value" id="stat-net-high">--</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label">Target Buy</span>
+                                    <span class="stat-value" id="stat-low">--</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label">Net Margin</span>
+                                    <span class="stat-value" id="stat-margin">--</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label">Net ROI</span>
+                                    <span class="stat-value" id="stat-roi">--</span>
+                                </div>
                             </div>
                         </div>
-                        <p class="tax-note">Net sell, margin, and ROI include the 2% GE tax on sells >= 50 gp.</p>
+
+                        <div>
+                            <p class="section-label">Flip economics <span class="normal-case tracking-normal font-normal text-slate-400">— for your bankroll</span></p>
+                            <div class="stats-grid">
+                                <div class="stat-card accent">
+                                    <span class="stat-label"
+                                        title="Units you can buy in one 4h limit window, capped by your capital">Qty /
+                                        cycle</span>
+                                    <span class="stat-value" id="stat-qty">--</span>
+                                    <span class="stat-hint" id="qty-hint"></span>
+                                </div>
+                                <div class="stat-card accent">
+                                    <span class="stat-label" title="Margin × quantity — the number that actually pays">Profit
+                                        / cycle</span>
+                                    <span class="stat-value" id="stat-cycle-profit">--</span>
+                                </div>
+                                <div class="stat-card accent">
+                                    <span class="stat-label"
+                                        title="Profit per cycle divided by estimated cycle time">Est. GP / hour</span>
+                                    <span class="stat-value" id="stat-gp-hour">--</span>
+                                </div>
+                                <div class="stat-card accent">
+                                    <span class="stat-label"
+                                        title="Time to fill both sides at ~20% of market flow, floored by the 4h limit reset">Est.
+                                        cycle time</span>
+                                    <span class="stat-value" id="stat-fill-time">--</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label">GE Limit</span>
+                                    <span class="stat-value" id="stat-limit-display">--</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <p class="section-label">Market quality</p>
+                            <div class="stats-grid">
+                                <div class="stat-card">
+                                    <span class="stat-label" title="Mid-price change over the last 12 hours">12h
+                                        Trend</span>
+                                    <span class="stat-value" id="stat-trend">--</span>
+                                    <span class="stat-hint" id="trend-note"></span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label"
+                                        title="How often the post-tax spread stays positive across intervals">Spread
+                                        stability</span>
+                                    <span class="stat-value" id="stat-stability">--</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label"
+                                        title="How evenly 24h volume splits between instant-buys and instant-sells">Book
+                                        balance</span>
+                                    <span class="stat-value" id="stat-balance">--</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label" title="How long ago this item last traded">Last
+                                        traded</span>
+                                    <span class="stat-value" id="stat-freshness">--</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label">7d Avg Vol</span>
+                                    <span class="stat-value" id="stat-avg-vol">--</span>
+                                </div>
+                                <div class="stat-card">
+                                    <span class="stat-label">Consistency</span>
+                                    <span class="stat-value" id="stat-consistency">--</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p class="tax-note">Net sell, margin, ROI and all profit figures include the 2% GE tax on sells
+                            of 50gp or more (capped at 5m per item).</p>
 
                         <div class="ai-advice-card">
                             <div class="ai-header">
                                 <span class="ai-icon">✨</span>
                                 <div>
-                                    <p class="text-xs uppercase tracking-[0.3em] text-slate-400">AI Trend Watch</p>
+                                    <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Flip Score</p>
                                     <h3 class="text-lg font-semibold text-ink">Quick read before you flip</h3>
                                 </div>
                             </div>
-                            <p id="ai-reasoning">Analyzing market data...</p>
                             <div class="ai-score-badge" id="ai-score-display">Score: --</div>
+                            <ul id="ai-reasoning">
+                                <li class="reason-line reason-neutral"><span class="reason-icon">⏳</span><span>Analyzing
+                                        market data…</span></li>
+                            </ul>
+                            <div class="score-breakdown" id="score-breakdown"></div>
                         </div>
 
                         <div class="rounded-2xl border border-slate-100 bg-white/70 p-4">
                             <div class="chart-container">
                                 <canvas id="volumeChart"></canvas>
                             </div>
+                            <p class="tax-note mt-3">The dashed purple <strong>Net Spread</strong> line is the post-tax
+                                margin per interval — a spread that stays high and flat is repeatable, one that spikes
+                                once is noise.</p>
                         </div>
                     </div>
                 </section>
@@ -161,42 +208,59 @@
                         class="rounded-3xl border border-white/80 bg-white/80 p-6 sm:p-8 shadow-xl shadow-slate-200/70 space-y-6">
                         <div class="space-y-2">
                             <p class="text-xs font-semibold uppercase tracking-[0.4em] text-slate-400">Flip Finder</p>
-                            <h2 class="text-2xl font-semibold text-ink">Top F2P Flips</h2>
-                            <p class="text-slate-500">High-volume, non-member items filtered by your risk profile.</p>
+                            <h2 class="text-2xl font-semibold text-ink">Ranked by profit per limit cycle</h2>
+                            <p class="text-slate-500">Every figure below is sized to the bankroll you enter, so the
+                                ranking reflects what you can actually fill.</p>
                         </div>
 
                         <div class="filters">
+                            <div class="filter-group emphasis">
+                                <label for="filter-capital">Your capital</label>
+                                <input type="text" id="filter-capital" placeholder="e.g. 10m" inputmode="text">
+                                <span class="filter-hint" id="capital-hint">Unlimited</span>
+                            </div>
                             <div class="filter-group">
-                                <label>Min Volume (24h)</label>
+                                <label for="filter-members">Item pool</label>
+                                <select id="filter-members">
+                                    <option value="f2p">F2P only</option>
+                                    <option value="p2p">Members only</option>
+                                    <option value="all">All items</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label for="filter-volume">Min volume (24h)</label>
                                 <input type="number" id="filter-volume" placeholder="e.g. 10000" value="1000">
                             </div>
                             <div class="filter-group">
-                                <label>Min Margin</label>
+                                <label for="filter-margin">Min margin</label>
                                 <input type="number" id="filter-margin" placeholder="e.g. 5" value="1">
                             </div>
                             <div class="filter-group">
-                                <label>Min Limit</label>
+                                <label for="filter-limit">Min buy limit</label>
                                 <input type="number" id="filter-limit" placeholder="e.g. 100" value="0">
                             </div>
+                            <div class="filter-group">
+                                <label for="filter-cycle">Max cycle (hours)</label>
+                                <input type="number" id="filter-cycle" placeholder="any" step="0.5" min="0">
+                            </div>
+                            <div class="filter-group">
+                                <label for="filter-age">Max quote age (min)</label>
+                                <input type="number" id="filter-age" placeholder="any" min="1">
+                            </div>
                         </div>
-                        <p class="tax-note">Flip margins and ROI already include the 2% GE tax on sells >= 50 gp.</p>
+
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <p class="tax-note">Margins include the 2% GE tax. <strong>L</strong> = capped by the buy
+                                limit, <strong>$</strong> = capped by your capital.</p>
+                            <p class="tax-note" id="flip-count"></p>
+                        </div>
 
                         <div class="table-container">
                             <table id="flip-table">
                                 <thead>
-                                    <tr>
-                                        <th data-sort="name">Item</th>
-                                        <th data-sort="score">AI Score ✨</th>
-                                        <th data-sort="high">Sell (pre-tax)</th>
-                                        <th data-sort="low">Target Buy</th>
-                                        <th data-sort="margin">Net Margin</th>
-                                        <th data-sort="volume">Volume (24h)</th>
-                                        <th data-sort="limit">Limit</th>
-                                    </tr>
+                                    <tr></tr>
                                 </thead>
-                                <tbody>
-                                    <!-- Populated by JS -->
-                                </tbody>
+                                <tbody></tbody>
                             </table>
                         </div>
                     </div>
@@ -213,7 +277,7 @@
             </footer>
         </div>
     </div>
-    <script src="script.js"></script>
+    <script type="module" src="/src/main.js"></script>
 </body>
 
 </html>
