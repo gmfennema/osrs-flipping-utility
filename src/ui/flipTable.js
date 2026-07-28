@@ -7,9 +7,9 @@
  * position) every sixty seconds.
  */
 
-import { state, setSort, setCapital, setMembersFilter, setCurrentItem } from '../state.js';
+import { state, setSort, setMembersFilter, setCurrentItem } from '../state.js';
 import { buildFlip } from '../calc/flip.js';
-import { parseGp } from '../calc/pricing.js';
+import { bindCapitalInput } from './capital.js';
 import { gp, gpShort, signed, pct, hours, relativeTime, scoreColor, iconUrl } from './format.js';
 
 const MAX_ROWS = 150;
@@ -255,25 +255,12 @@ export function initFlipControls() {
         document.getElementById(id)?.addEventListener('input', () => renderFlipTable());
     });
 
-    const capitalInput = document.getElementById('filter-capital');
-    if (capitalInput) {
-        if (state.capital !== null) capitalInput.value = String(state.capital);
-        const apply = () => {
-            const parsed = parseGp(capitalInput.value);
-            setCapital(parsed !== null && parsed > 0 ? parsed : null);
-            const hint = document.getElementById('capital-hint');
-            if (hint) {
-                hint.textContent = state.capital === null
-                    ? 'Unlimited — showing full buy limits'
-                    : `${gp(state.capital)} gp`;
-            }
-            renderFlipTable();
-            window.dispatchEvent(new CustomEvent('osrs:capital-changed'));
-        };
-        capitalInput.addEventListener('change', apply);
-        capitalInput.addEventListener('blur', apply);
-        apply();
-    }
+    bindCapitalInput({
+        input: document.getElementById('filter-capital'),
+        hint: document.getElementById('capital-hint'),
+        emptyHint: 'Unlimited — showing full buy limits',
+        onApply: () => renderFlipTable()
+    });
 
     const membersSelect = document.getElementById('filter-members');
     if (membersSelect) {

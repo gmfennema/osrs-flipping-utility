@@ -12,9 +12,11 @@ import { loadEdgeHistories } from '../api/market.js';
 import { shortlist } from '../calc/shortlist.js';
 import { computeEdge, EDGE_CONFIG } from '../calc/edge.js';
 import { buildPlan, currentBuyWindow, BUY_WINDOWS, LIMIT_WINDOW_HOURS } from '../calc/plan.js';
+import { bindCapitalInput } from './capital.js';
 import { gp, gpShort, pct, iconUrl, scoreColor } from './format.js';
 
-let running = false;
+/** The in-flight build, if any: `{ controller, promise }`. */
+let activeRun = null;
 let lastPlan = null;
 
 const BOUND_LABELS = {
@@ -92,6 +94,9 @@ function positionRow(position) {
     if (edge.pctRank <= 0.25) flags.push('<span class="plan-flag plan-flag-good" title="Trading in the bottom quarter of its 30-day range">near 30d low</span>');
     if (edge.jumpiness !== null && edge.jumpiness > 0.35) flags.push('<span class="plan-flag plan-flag-warn" title="Most of this item\'s movement happens in a few sudden jumps, so a scheduled hold may sit dead">jumpy</span>');
 
+    // `data-label` is what lets the narrow-screen stylesheet drop the header row
+    // and print each cell as a labelled line — a 12-column table is unreadable
+    // on a phone, and the bid and qty are the whole point of the plan.
     return `
         <tr data-item-id="${item.id}">
             <td class="col-item">
@@ -103,18 +108,28 @@ function positionRow(position) {
                     </div>
                 </div>
             </td>
-            <td><span class="score-pill" style="color:${scoreColor(score)}">${score}</span></td>
-            <td class="plan-num">${gp(orders.bid)}</td>
-            <td class="plan-num">${gp(orders.ask)}</td>
-            <td class="plan-num positive">${gp(orders.margin)}</td>
-            <td class="plan-num">${pct(roiPct, 2)}</td>
-            <td class="plan-num">${gp(qty)}<span class="bound-tag bound-${boundBy}" title="${bound.title}">${bound.tag}</span></td>
-            <td class="plan-num">${gpShort(spend)}</td>
-            <td class="plan-num positive">${gpShort(profit)}</td>
-            <td class="plan-num">${fill}</td>
-            <td class="plan-num">${gpShort(edge.thinFlow48h)}</td>
-            <td class="plan-num">${(edge.pctRank * 100).toFixed(0)}%</td>
+            <td data-label="Edge"><span class="score-pill" style="color:${scoreColor(score)}">${score}</span></td>
+            <td class="plan-num" data-label="Bid">${gp(orders.bid)}</td>
+            <td class="plan-num" data-label="Ask">${gp(orders.ask)}</td>
+            <td class="plan-num positive" data-label="Margin">${gp(orders.margin)}</td>
+            <td class="plan-num" data-label="ROI">${pct(roiPct, 2)}</td>
+            <td class="plan-num" data-label="Qty">${gp(qty)}<span class="bound-tag bound-${boundBy}" title="${bound.title}">${bound.tag}</span></td>
+            <td class="plan-num" data-label="Spend">${gpShort(spend)}</td>
+            <td class="plan-num positive" data-label="Profit">${gpShort(profit)}</td>
+            <td class="plan-num" data-label="Fill">${fill}</td>
+            <td class="plan-num" data-label="Thin flow">${gpShort(edge.thinFlow48h)}</td>
+            <td class="plan-num" data-label="30d pos">${(edge.pctRank * 100).toFixed(0)}%</td>
         </tr>`;
+}
+
+/** Replace the table body with a single explanatory row. */
+function renderNotice(html) {
+    const tbody = document.querySelector('#plan-table tbody');
+    if (tbody) tbody.innerHTML = `<tr><td colspan="12" class="plan-empty">${html}</td></tr>`;
+    const summary = document.getElementById('plan-summary');
+    if (summary) summary.innerHTML = '';
+    const rejected = document.getElementById('plan-rejected');
+    if (rejected) rejected.innerHTML = '';
 }
 
 function renderPositions(plan) {
@@ -122,7 +137,7 @@ function renderPositions(plan) {
     if (!tbody) return;
 
     if (!plan.positions.length) {
-        tbody.innerHTML = `<tr><td colspan="11" class="plan-empty">
+        tbody.innerHTML = `<tr><td colspan="12" class="plan-empty">
             Nothing clears the bar right now. Every candidate was rejected for thin flow, an erratic price,
             or no post-tax spread. That is a real answer — on a quiet day the correct position is no position.
         </td></tr>`;
@@ -159,62 +174,122 @@ function renderRejected(plan) {
     el.innerHTML = `<details><summary>Why ${plan.skipped.length} candidates were rejected</summary><ul>${rows}</ul></details>`;
 }
 
-/** Fetch history for the shortlist and render the plan. */
-export async function renderPlan({ force = false } = {}) {
-    if (running) return;
-    if (lastPlan && !force) {
-        renderSummary(lastPlan.plan, lastPlan.evaluated);
-        renderPositions(lastPlan.plan);
-        renderRejected(lastPlan.plan);
-        return;
-    }
+function renderCached() {
+    const measured = lastPlan.measured;
+    renderSummary(lastPlan.plan, measured);
+    renderPositions(lastPlan.plan);
+    renderRejected(lastPlan.plan);
+    setStatus(`Plan built from ${measured} of ${lastPlan.evaluated} candidates`
+        + `${lastPlan.failed ? ` · ${lastPlan.failed} could not be measured` : ''}`
+        + ` · ${new Date(lastPlan.builtAt).toLocaleTimeString()}`);
+}
 
+async function build(signal) {
     const capital = state.capital;
-    if (!capital || capital <= 0) {
-        setStatus('Enter your bankroll in the Flip Finder tab to build a plan.');
+
+    const candidates = shortlist({
+        items: state.itemMapping,
+        latestPrices: state.latestPrices,
+        volume24h: state.volume24h,
+        capital,
+        pool: state.membersFilter
+    });
+
+    if (!candidates.length) {
+        setStatus('No items passed the initial screen. Check that prices have loaded.');
+        renderNotice('No items passed the initial screen. Either prices have not loaded yet, or your bankroll'
+            + ' is too small to take a worthwhile position in anything in this pool.');
         return;
     }
 
-    running = true;
-    try {
-        const candidates = shortlist({
-            items: state.itemMapping,
-            latestPrices: state.latestPrices,
-            volume24h: state.volume24h,
-            capital,
-            pool: state.membersFilter
-        });
+    setStatus(`Measuring ${candidates.length} candidates against 30 days of history…`, { busy: true });
+    const { histories, failed, aborted, gaveUp } = await loadEdgeHistories(
+        candidates.map((c) => c.item.id),
+        (done, total) => setStatus(`Measuring history… ${done}/${total}`, { busy: true }),
+        { signal }
+    );
 
-        if (!candidates.length) {
-            setStatus('No items passed the initial screen. Check that prices have loaded.');
-            renderPositions({ positions: [] });
-            return;
-        }
+    // A cancelled run must not repaint over whatever replaced it.
+    if (aborted || signal.aborted) return;
 
-        setStatus(`Measuring ${candidates.length} candidates against 30 days of history…`, { busy: true });
-        const histories = await loadEdgeHistories(
-            candidates.map((c) => c.item.id),
-            (done, total) => setStatus(`Measuring history… ${done}/${total}`, { busy: true })
-        );
-
-        const withEdges = candidates.map(({ item }) => ({
-            item,
-            edge: computeEdge(histories.get(item.id) ?? [])
-        }));
-
-        const plan = buildPlan({ candidates: withEdges, capital });
-        lastPlan = { plan, evaluated: candidates.length, builtAt: Date.now() };
-
-        renderSummary(plan, candidates.length);
-        renderPositions(plan);
-        renderRejected(plan);
-        setStatus(`Plan built from ${candidates.length} candidates · ${new Date().toLocaleTimeString()}`);
-    } catch (error) {
-        console.error('Plan build failed', error);
-        setStatus(`Could not build a plan: ${error?.message ?? error}`);
-    } finally {
-        running = false;
+    if (gaveUp && !histories.size) {
+        setStatus('Could not reach the wiki API to measure history. Check your connection and tap Rebuild plan.');
+        renderNotice('Could not measure any history — every request failed, so there is nothing to rank.'
+            + ' This is a connection problem, not a quiet market. Tap <strong>Rebuild plan</strong> to retry.');
+        return;
     }
+
+    // Only items we actually measured are ranked. An item whose request dropped
+    // is unknown, not untradeable, so it is counted as a gap rather than being
+    // silently rejected for "no usable history".
+    const measured = candidates.filter(({ item }) => histories.has(item.id));
+    const withEdges = measured.map(({ item }) => ({
+        item,
+        edge: computeEdge(histories.get(item.id))
+    }));
+
+    const plan = buildPlan({ candidates: withEdges, capital });
+    lastPlan = {
+        plan,
+        evaluated: candidates.length,
+        measured: measured.length,
+        failed: failed.length,
+        builtAt: Date.now()
+    };
+
+    renderSummary(plan, measured.length);
+    renderPositions(plan);
+    renderRejected(plan);
+
+    const gap = failed.length
+        ? ` · ${failed.length} could not be measured${gaveUp ? ' (connection dropped)' : ''} — tap Rebuild plan to retry`
+        : '';
+    setStatus(`Plan built from ${measured.length} of ${candidates.length} candidates${gap}`
+        + ` · ${new Date().toLocaleTimeString()}`);
+}
+
+/**
+ * Fetch history for the shortlist and render the plan.
+ *
+ * `force` cancels a build already in flight instead of being ignored, so a
+ * stalled run is something the Rebuild button can actually get you out of.
+ */
+export async function renderPlan({ force = false } = {}) {
+    if (activeRun && !force) return activeRun.promise;
+
+    if (activeRun) {
+        activeRun.controller.abort();
+        try { await activeRun.promise; } catch { /* superseded */ }
+    }
+
+    if (lastPlan && !force) {
+        renderCached();
+        return;
+    }
+
+    if (!state.capital || state.capital <= 0) {
+        setStatus('Enter your bankroll above to build a plan.');
+        renderNotice('Every figure in the plan is sized to your bankroll, so there is nothing to compute yet.'
+            + ' Enter what you have to spend in <strong>Your capital</strong> above — <code>9m</code> and'
+            + ' <code>9000000</code> both work.');
+        return;
+    }
+
+    const controller = new AbortController();
+    const run = { controller, promise: null };
+    run.promise = (async () => {
+        try {
+            await build(controller.signal);
+        } catch (error) {
+            if (controller.signal.aborted) return;
+            console.error('Plan build failed', error);
+            setStatus(`Could not build a plan: ${error?.message ?? error}`);
+        } finally {
+            if (activeRun === run) activeRun = null;
+        }
+    })();
+    activeRun = run;
+    return run.promise;
 }
 
 export function invalidatePlan() {
@@ -222,9 +297,15 @@ export function invalidatePlan() {
 }
 
 export function initPlanner() {
+    bindCapitalInput({
+        input: document.getElementById('plan-capital'),
+        hint: document.getElementById('plan-capital-hint'),
+        emptyHint: 'Required — the plan is sized to your bankroll'
+    });
+
     document.getElementById('plan-refresh')?.addEventListener('click', () => renderPlan({ force: true }));
     window.addEventListener('osrs:capital-changed', () => {
         invalidatePlan();
-        if (state.activeTab === 'planner') renderPlan();
+        if (state.activeTab === 'planner') renderPlan({ force: true });
     });
 }

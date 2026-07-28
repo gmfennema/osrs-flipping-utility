@@ -687,6 +687,23 @@ footer a {
 
 /* --- 48h Plan --- */
 
+.plan-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem;
+}
+
+.plan-controls .filter-group {
+    min-width: 9rem;
+    flex: 1 1 9rem;
+}
+
+.plan-controls .plan-refresh-btn {
+    /* Sit on the input's baseline, not the hint text below it. */
+    margin-bottom: 1.25rem;
+}
+
 .plan-refresh-btn {
     border-radius: 0.9rem;
     border: 1px solid rgba(37, 99, 235, 0.3);
@@ -865,4 +882,94 @@ footer a {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+}
+
+/*
+ * Twelve columns and ~980px of table do not fit a phone. Inside a horizontally
+ * scrolling container all a mobile user could see was the item name, the score,
+ * and a sliver of the bid — the bid, ask and quantity that *are* the plan sat
+ * off-screen behind a nested scroll that fights the page scroll.
+ *
+ * Below this width each position becomes a labelled card instead. The header row
+ * is dropped and every cell prints its own label from `data-label`, so nothing
+ * is hidden and nothing needs to be scrolled sideways.
+ */
+@media (max-width: 720px) {
+    #planner-view .table-container {
+        overflow-x: visible;
+        border: 0;
+        border-radius: 0;
+        background: none;
+        box-shadow: none;
+    }
+
+    #plan-table,
+    #plan-table tbody {
+        display: block;
+        width: 100%;
+    }
+
+    #plan-table thead {
+        display: none;
+    }
+
+    #plan-table tbody tr {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.1rem 0.9rem;
+        padding: 0.9rem 1rem;
+        margin-bottom: 0.75rem;
+        border: 1px solid var(--border);
+        border-radius: 1.25rem;
+        background: rgba(255, 255, 255, 0.95);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    #plan-table tbody td {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.2rem 0;
+        border: 0;
+        text-align: right;
+        white-space: normal;
+    }
+
+    #plan-table tbody td[data-label]::before {
+        content: attr(data-label);
+        /* Holds the label left and keeps the value flush right, whether the cell
+           carries one child or a value plus a bound tag. */
+        margin-right: auto;
+        font-size: 0.66rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        text-align: left;
+    }
+
+    #plan-table tbody td.col-item,
+    #plan-table tbody td.plan-empty {
+        grid-column: 1 / -1;
+        display: block;
+        text-align: left;
+    }
+
+    #plan-table tbody td.col-item {
+        padding-bottom: 0.55rem;
+    }
+
+    #plan-table tbody td:nth-child(2) {
+        text-align: right;
+    }
+
+    #plan-table .item-cell {
+        min-width: 0;
+    }
+
+    /* No hover on touch; the card background must not be painted over. */
+    #plan-table tbody tr:hover td {
+        background: none;
+    }
 }
