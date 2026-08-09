@@ -973,3 +973,847 @@ footer a {
         background: none;
     }
 }
+
+/* ------------------------------------------------------------ Quest Tree ---
+ *
+ * Written phone-first: the base rules assume a ~360px column and desktop only
+ * ever adds room. The one piece that is not pure CSS is the connector lines in
+ * the tree, which are drawn into an SVG overlay after layout — where a line
+ * starts depends on how the chips wrapped, which only the browser knows.
+ */
+
+.qt-block {
+    margin-top: 1.5rem;
+}
+
+.qt-block-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.4rem;
+}
+
+.qt-block-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.qt-block-count {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #94a3b8;
+    font-variant-numeric: tabular-nums;
+}
+
+.qt-block-note,
+.qt-panel-note {
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text-muted);
+    margin-bottom: 0.85rem;
+}
+
+.qt-footnote {
+    margin-top: 1.75rem;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: #94a3b8;
+}
+
+.qt-empty {
+    border-radius: 1rem;
+    border: 1px dashed var(--border);
+    background: rgba(248, 250, 252, 0.8);
+    padding: 1.25rem;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--text-muted);
+}
+
+.qt-link {
+    background: none;
+    border: 0;
+    padding: 0.25rem 0;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--brand);
+    cursor: pointer;
+}
+
+/* --- Progress --- */
+
+.qt-progress {
+    border-radius: 1.25rem;
+    border: 1px solid var(--border);
+    background: rgba(248, 250, 252, 0.85);
+    padding: 0.85rem 1rem;
+}
+
+.qt-progress-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.qt-progress-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #94a3b8;
+}
+
+.qt-progress-bar {
+    height: 6px;
+    margin: 0.55rem 0 0.5rem;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.08);
+    overflow: hidden;
+}
+
+.qt-progress-bar span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #34d399, var(--success));
+    transition: width 0.3s ease;
+}
+
+.qt-progress-note {
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+
+/* --- Chips --- */
+
+.qt-filters {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.qt-chip-row {
+    display: flex;
+    gap: 0.4rem;
+    overflow-x: auto;
+    padding-bottom: 0.15rem;
+    scrollbar-width: none;
+}
+
+.qt-chip-row::-webkit-scrollbar {
+    display: none;
+}
+
+.qt-chip {
+    flex: 0 0 auto;
+    min-height: 2.4rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: #ffffff;
+    padding: 0.4rem 0.95rem;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #475569;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.qt-chip.active {
+    background: rgba(37, 99, 235, 0.1);
+    color: var(--brand);
+    border-color: rgba(37, 99, 235, 0.5);
+}
+
+.qt-panel-tabs {
+    margin: 1.1rem 0 0.25rem;
+}
+
+/* --- Stage cards --- */
+
+.qt-stage-cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+
+.qt-stage-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    text-align: left;
+    border-radius: 1.1rem;
+    border: 1px solid var(--border);
+    background: #ffffff;
+    padding: 0.8rem 0.9rem;
+    cursor: pointer;
+    font: inherit;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.qt-stage-card.active {
+    border-color: currentColor;
+    box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.qt-stage-card[data-stage="early"] { color: #047857; }
+.qt-stage-card[data-stage="mid"] { color: var(--brand); }
+.qt-stage-card[data-stage="late"] { color: #b45309; }
+.qt-stage-card[data-stage="endgame"] { color: #6d28d9; }
+
+.qt-stage-count {
+    font-size: 1.45rem;
+    font-weight: 700;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+
+.qt-stage-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.qt-stage-blurb {
+    font-size: 0.7rem;
+    line-height: 1.35;
+    color: var(--text-muted);
+}
+
+/* --- Keystones --- */
+
+.qt-keystones {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.qt-keystone {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    text-align: left;
+    border-radius: 1rem;
+    border: 1px solid var(--border);
+    background: #ffffff;
+    padding: 0.7rem 0.9rem;
+    font: inherit;
+    cursor: pointer;
+}
+
+.qt-keystone-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.qt-keystone-name {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.qt-keystone-count {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--brand);
+    font-variant-numeric: tabular-nums;
+}
+
+.qt-keystone-bar {
+    display: block;
+    height: 5px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.07);
+    overflow: hidden;
+}
+
+.qt-keystone-bar span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #93c5fd, var(--brand));
+}
+
+.qt-keystone-note {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+/* --- Quest list --- */
+
+.qt-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.qt-row {
+    display: flex;
+    align-items: stretch;
+    border-radius: 1rem;
+    border: 1px solid var(--border);
+    background: #ffffff;
+    overflow: hidden;
+}
+
+.qt-row[data-done="true"] {
+    background: rgba(240, 253, 244, 0.7);
+    border-color: rgba(5, 150, 105, 0.3);
+}
+
+.qt-row-check,
+.qt-node-check {
+    flex: 0 0 2.6rem;
+    border: 0;
+    border-right: 1px solid var(--border);
+    background: rgba(248, 250, 252, 0.9);
+    color: var(--success);
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0;
+}
+
+.qt-row[data-done="true"] .qt-row-check,
+.qt-node[data-done="true"] .qt-node-check {
+    background: rgba(5, 150, 105, 0.14);
+}
+
+.qt-row-open {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    align-items: flex-start;
+    text-align: left;
+    border: 0;
+    background: none;
+    font: inherit;
+    padding: 0.6rem 0.8rem;
+    cursor: pointer;
+}
+
+.qt-row-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #0f172a;
+    line-height: 1.3;
+}
+
+.qt-row[data-done="true"] .qt-row-name {
+    color: var(--text-muted);
+}
+
+.qt-row-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.qt-row-counts {
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.qt-mini {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #7c3aed;
+}
+
+.qt-pill {
+    font-size: 0.63rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.12rem 0.4rem;
+    border-radius: 0.4rem;
+    background: rgba(15, 23, 42, 0.06);
+    color: #64748b;
+    white-space: nowrap;
+}
+
+.qt-pill[data-members="true"] { background: rgba(217, 119, 6, 0.14); color: var(--warn); }
+.qt-pill[data-members="false"] { background: rgba(5, 150, 105, 0.14); color: var(--success); }
+.qt-pill[data-warn="true"] { background: rgba(239, 68, 68, 0.12); color: var(--danger); }
+.qt-pill[data-stage="early"] { background: rgba(5, 150, 105, 0.12); color: #047857; }
+.qt-pill[data-stage="mid"] { background: rgba(37, 99, 235, 0.12); color: var(--brand); }
+.qt-pill[data-stage="late"] { background: rgba(217, 119, 6, 0.14); color: #b45309; }
+.qt-pill[data-stage="endgame"] { background: rgba(124, 58, 237, 0.14); color: #6d28d9; }
+
+/* --- Detail --- */
+
+.qt-detail-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.85rem;
+}
+
+.qt-back {
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: #ffffff;
+    padding: 0.45rem 0.95rem;
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.qt-hero {
+    border-radius: 1.4rem;
+    border: 1px solid rgba(37, 99, 235, 0.2);
+    background: linear-gradient(150deg, rgba(219, 234, 254, 0.75), rgba(255, 255, 255, 0.95));
+    padding: 1.1rem 1.1rem 1.2rem;
+}
+
+.qt-hero[data-stage="early"] { border-color: rgba(5, 150, 105, 0.25); background: linear-gradient(150deg, rgba(209, 250, 229, 0.7), rgba(255, 255, 255, 0.95)); }
+.qt-hero[data-stage="late"] { border-color: rgba(217, 119, 6, 0.25); background: linear-gradient(150deg, rgba(254, 243, 199, 0.7), rgba(255, 255, 255, 0.95)); }
+.qt-hero[data-stage="endgame"] { border-color: rgba(124, 58, 237, 0.25); background: linear-gradient(150deg, rgba(237, 233, 254, 0.8), rgba(255, 255, 255, 0.95)); }
+
+.qt-hero-kicker {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.qt-hero-name {
+    margin: 0.3rem 0 0.55rem;
+    font-size: 1.45rem;
+    font-weight: 600;
+    line-height: 1.2;
+    color: #0f172a;
+}
+
+.qt-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+}
+
+.qt-hero-line {
+    margin-top: 0.7rem;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: #334155;
+}
+
+.qt-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-top: 0.9rem;
+}
+
+.qt-action {
+    min-height: 2.5rem;
+    display: inline-flex;
+    align-items: center;
+    border-radius: 0.85rem;
+    border: 1px solid rgba(37, 99, 235, 0.3);
+    background: rgba(255, 255, 255, 0.9);
+    padding: 0.5rem 1rem;
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--brand);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.qt-action.is-done {
+    border-color: rgba(5, 150, 105, 0.4);
+    background: rgba(5, 150, 105, 0.12);
+    color: var(--success);
+}
+
+.qt-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+    margin-top: 0.8rem;
+}
+
+.qt-stats-quad {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.qt-stat {
+    border-radius: 1rem;
+    border: 1px solid var(--border);
+    background: #ffffff;
+    padding: 0.7rem 0.6rem;
+    text-align: center;
+}
+
+.qt-stat[data-accent="true"] {
+    border-color: rgba(37, 99, 235, 0.3);
+    background: rgba(219, 234, 254, 0.4);
+}
+
+.qt-stat-value {
+    display: block;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+}
+
+.qt-stat-label {
+    display: block;
+    margin-top: 0.1rem;
+    font-size: 0.68rem;
+    line-height: 1.25;
+    color: var(--text-muted);
+}
+
+.qt-panel {
+    margin-top: 1rem;
+}
+
+.qt-panel-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.6rem;
+}
+
+.qt-banner {
+    border-radius: 1rem;
+    border: 1px solid var(--border);
+    padding: 0.8rem 1rem;
+    margin-bottom: 0.85rem;
+    font-size: 0.83rem;
+    line-height: 1.55;
+    color: var(--text-muted);
+}
+
+.qt-banner-warn {
+    border-color: rgba(217, 119, 6, 0.3);
+    background: rgba(254, 243, 199, 0.6);
+    color: #92400e;
+}
+
+.qt-banner-good {
+    border-color: rgba(22, 163, 74, 0.28);
+    background: rgba(220, 252, 231, 0.55);
+    color: #166534;
+}
+
+/* --- The tree --- */
+
+.qt-tree {
+    position: relative;
+}
+
+.qt-tree-edges {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+    z-index: 0;
+}
+
+/*
+ * Deliberately faint. A tier can hold two dozen quests, so a line from the top
+ * of one tier to the next has to cross every wrapped row in between — at full
+ * strength that reads as noise laid over the text. At this weight the edges are
+ * connective texture until you touch a quest, and then only that quest's own
+ * lines come forward.
+ */
+.qt-tree-edges path {
+    fill: none;
+    stroke: rgba(37, 99, 235, 0.16);
+    stroke-width: 1.25;
+    transition: stroke 0.15s ease, stroke-width 0.15s ease;
+}
+
+.qt-tree-edges path.is-lit {
+    stroke: var(--brand);
+    stroke-width: 2.5;
+}
+
+.qt-tier {
+    position: relative;
+    z-index: 1;
+    padding-bottom: 2rem;
+}
+
+.qt-tier:last-child {
+    padding-bottom: 0;
+}
+
+.qt-tier-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.45rem;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #94a3b8;
+}
+
+.qt-tier-count {
+    letter-spacing: 0.04em;
+    font-weight: 600;
+    text-transform: none;
+    font-size: 0.7rem;
+}
+
+.qt-tier-nodes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.qt-node {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: stretch;
+    /* 8rem is chosen so two chips fit a 360px phone and none fits alone: a
+       single full-width chip per row turns the tree into a list and stacks
+       every connector into one straight vertical line. */
+    flex: 1 1 8rem;
+    min-width: 0;
+    max-width: 100%;
+    border-radius: 0.9rem;
+    border: 1px solid var(--border);
+    background: #ffffff;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+}
+
+.qt-node[data-role="target"] {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px var(--brand-soft), 0 10px 24px rgba(37, 99, 235, 0.14);
+}
+
+.qt-node[data-done="true"] {
+    border-color: rgba(5, 150, 105, 0.3);
+    background: rgba(240, 253, 244, 0.8);
+    box-shadow: none;
+}
+
+.qt-node-check {
+    flex: 0 0 1.9rem;
+    font-size: 0.8rem;
+}
+
+.qt-node-open {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    align-items: flex-start;
+    text-align: left;
+    border: 0;
+    background: none;
+    font: inherit;
+    padding: 0.45rem 0.6rem;
+    cursor: pointer;
+}
+
+.qt-node-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.25;
+    color: #0f172a;
+}
+
+.qt-node[data-done="true"] .qt-node-name {
+    color: var(--text-muted);
+}
+
+.qt-node-tags {
+    font-size: 0.62rem;
+    color: #94a3b8;
+}
+
+/* --- Requirements --- */
+
+.qt-skills,
+.qt-gates {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.qt-skills li {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    border-radius: 0.8rem;
+    border: 1px solid var(--border);
+    background: #ffffff;
+    padding: 0.45rem 0.7rem;
+}
+
+.qt-skill-level {
+    flex: 0 0 2.2rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--brand);
+    font-variant-numeric: tabular-nums;
+}
+
+.qt-skill-name {
+    flex: 1;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.qt-skill-source {
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-align: right;
+    cursor: pointer;
+    max-width: 45%;
+}
+
+.qt-gate {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.15rem 0.6rem;
+    text-align: left;
+    border-radius: 0.8rem;
+    border: 1px solid var(--border);
+    background: #ffffff;
+    padding: 0.55rem 0.75rem;
+    font: inherit;
+    cursor: pointer;
+}
+
+.qt-gates li[data-short="true"] .qt-gate {
+    border-color: rgba(217, 119, 6, 0.35);
+    background: rgba(254, 243, 199, 0.4);
+}
+
+.qt-gate-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.qt-gate-need {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--warn);
+    font-variant-numeric: tabular-nums;
+}
+
+.qt-gate-note {
+    grid-column: 1 / -1;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+/* Touch devices get no hover, and a sticky :hover after a tap looks broken. */
+@media (hover: hover) {
+    .qt-chip:hover,
+    .qt-back:hover,
+    .qt-stage-card:hover,
+    .qt-keystone:hover,
+    .qt-node:hover,
+    .qt-row:hover {
+        border-color: rgba(37, 99, 235, 0.45);
+    }
+}
+
+@media (min-width: 640px) {
+    .qt-stage-cards {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .qt-stats-quad {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .qt-hero-name {
+        font-size: 1.75rem;
+    }
+
+    .qt-row-open {
+        flex-direction: row;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.7rem 1rem;
+    }
+
+    .qt-row-name {
+        flex: 1 1 14rem;
+        font-size: 0.95rem;
+    }
+
+    .qt-row-meta {
+        flex: 0 0 auto;
+    }
+
+    .qt-row-counts {
+        flex: 0 0 9.5rem;
+        justify-content: flex-end;
+    }
+
+    .qt-node {
+        flex: 0 1 12rem;
+    }
+}
+
+/* Four tabs no longer fit one phone row at the desktop padding. */
+@media (max-width: 640px) {
+    .nav-btn {
+        padding: 0.55rem 1.1rem;
+        font-size: 0.9rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .qt-progress-bar span,
+    .qt-tree-edges path {
+        transition: none;
+    }
+}

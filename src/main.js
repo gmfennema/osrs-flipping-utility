@@ -10,6 +10,7 @@ import { showItem, refreshCurrentSnapshot, redrawChart } from './ui/analyzer.js'
 import { renderFlipTable, initFlipControls, resetFlipTable } from './ui/flipTable.js';
 import { initSearch } from './ui/search.js';
 import { initPlanner, renderPlan, invalidatePlan } from './ui/planner.js';
+import { initQuestTree, renderQuestTree } from './ui/questTree.js';
 import { startAutoRefresh } from './refresh.js';
 
 function initTabs() {
@@ -26,6 +27,10 @@ function initTabs() {
             // The plan costs one request per candidate, so it is built on demand
             // rather than on boot.
             if (btn.dataset.tab === 'planner') renderPlan();
+            // The quest graph is static data, so re-rendering on entry only
+            // costs a template pass — but the tree's connector lines can only
+            // be measured once the section is actually visible.
+            if (btn.dataset.tab === 'quests') renderQuestTree();
         });
     });
 }
@@ -68,6 +73,12 @@ async function boot() {
     initTabs();
     initRangeControls();
     initSearch((id) => showItem(id));
+
+    // The quest tree is bundled static data with no API behind it, so it is
+    // wired before the market fetches: a wiki outage must not take down a tab
+    // that never needed the wiki to begin with.
+    initQuestTree();
+    renderQuestTree();
 
     // Clicking a row in the Flip Finder jumps to the analyzer.
     window.addEventListener('osrs:select-item', (event) => showItem(event.detail.id));
