@@ -250,7 +250,11 @@ export const EDGE_CONFIG = {
     maxFlowShare: 0.10,
     /** Never put more than this share of the bankroll into one item. */
     maxBankrollShare: 0.15,
-    /** Positions to hold at once. F2P buy limits make breadth mandatory. */
+    /**
+     * Positions to hold at once. F2P buy limits make breadth mandatory; on a
+     * members pool `maxFlowShare` and `maxBankrollShare` above enforce it
+     * instead, since a single members item can absorb a whole bankroll.
+     */
     maxPositions: 40,
     /** Buy-limit windows you expect to use inside the hold. 48h allows 12. */
     limitWindows: 2,

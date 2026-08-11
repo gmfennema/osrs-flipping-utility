@@ -52,6 +52,7 @@
                                     <p class="text-xs font-semibold uppercase tracking-[0.4em] text-slate-400">Tracking
                                     </p>
                                     <h2 id="item-name" class="text-2xl font-semibold text-ink">Loading…</h2>
+                                    <p class="item-pool-note" id="item-pool-note"></p>
                                 </div>
                             </div>
                             <div class="controls flex flex-col gap-4 w-full md:w-auto">
@@ -222,12 +223,17 @@
                                 <span class="filter-hint" id="capital-hint">Unlimited</span>
                             </div>
                             <div class="filter-group">
-                                <label for="filter-members">Item pool</label>
-                                <select id="filter-members">
-                                    <option value="f2p">F2P only</option>
-                                    <option value="p2p">Members only</option>
+                                <label for="filter-pool">Item pool</label>
+                                <!-- src/ui/pool.js rebuilds these options and is the
+                                     source of truth for them; the markup carries a
+                                     copy only so the box is not empty before boot,
+                                     or if the item list fails to load at all. -->
+                                <select id="filter-pool">
                                     <option value="all">All items</option>
+                                    <option value="f2p">Free-to-play only</option>
+                                    <option value="p2p">Members only</option>
                                 </select>
+                                <span class="filter-hint" id="pool-hint"></span>
                             </div>
                             <div class="filter-group">
                                 <label for="filter-volume">Min volume (24h)</label>
@@ -278,8 +284,9 @@
                                 </p>
                                 <h2 class="text-2xl font-semibold text-ink">Buy this basket, set these asks</h2>
                                 <p class="text-slate-500 max-w-2xl">Ranked by expected return per gp, then allocated
-                                    across your whole bankroll. No single F2P item can absorb 9m, so the plan is always
-                                    a basket — that breadth is the strategy, not a hedge.</p>
+                                    across your whole bankroll. Barely any item can absorb a serious bankroll on its
+                                    own, so the plan is always a basket — that breadth is the strategy, not a hedge.
+                                    Set the item pool to whatever your account can actually trade.</p>
                             </div>
                             <div class="plan-controls">
                                 <div class="filter-group emphasis">
@@ -287,6 +294,15 @@
                                     <input type="text" id="plan-capital" placeholder="e.g. 10m" inputmode="text"
                                         autocomplete="off">
                                     <span class="filter-hint" id="plan-capital-hint">Required</span>
+                                </div>
+                                <div class="filter-group">
+                                    <label for="plan-pool">Item pool</label>
+                                    <select id="plan-pool">
+                                        <option value="all">All items</option>
+                                        <option value="f2p">Free-to-play only</option>
+                                        <option value="p2p">Members only</option>
+                                    </select>
+                                    <span class="filter-hint" id="plan-pool-hint"></span>
                                 </div>
                                 <button id="plan-refresh" class="plan-refresh-btn">Rebuild plan</button>
                             </div>

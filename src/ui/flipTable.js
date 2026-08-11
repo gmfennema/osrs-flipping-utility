@@ -7,18 +7,26 @@
  * position) every sixty seconds.
  */
 
-import { state, setSort, setMembersFilter, setCurrentItem } from '../state.js';
+import { state, setSort, setCurrentItem } from '../state.js';
 import { buildFlip } from '../calc/flip.js';
 import { bindCapitalInput } from './capital.js';
+import { bindPoolSelect, POOL_CHANGED } from './pool.js';
 import { gp, gpShort, signed, pct, hours, relativeTime, scoreColor, iconUrl } from './format.js';
 
 const MAX_ROWS = 150;
+
+/**
+ * Membership is a hard gate on whether you can trade a row at all, so once the
+ * pool includes members items it has to be visible per row — the pool selector
+ * says what was searched, not what any given line needs.
+ */
+const MEMBERS_TAG = '<span class="members-tag" title="Members item — you need a membership to trade this">P2P</span>';
 
 /** column key -> cell renderer */
 const COLUMNS = [
     {
         key: 'name', label: 'Item', className: 'col-item',
-        render: (f) => `<div class="item-cell"><img src="${iconUrl(f.icon)}" alt="" loading="lazy"><span>${f.name}</span></div>`
+        render: (f) => `<div class="item-cell"><img src="${iconUrl(f.icon)}" alt="" loading="lazy"><span>${f.name}</span>${f.members ? MEMBERS_TAG : ''}</div>`
     },
     {
         key: 'score', label: 'Score', title: 'Weighted blend of throughput, liquidity, freshness, margin, book balance',
@@ -89,8 +97,8 @@ export function computeRows() {
     const rows = [];
 
     for (const item of state.itemMapping) {
-        if (state.membersFilter === 'f2p' && item.members) continue;
-        if (state.membersFilter === 'p2p' && !item.members) continue;
+        if (state.itemPool === 'f2p' && item.members) continue;
+        if (state.itemPool === 'p2p' && !item.members) continue;
 
         const quote = state.latestPrices[item.id];
         if (!quote) continue;
@@ -262,14 +270,18 @@ export function initFlipControls() {
         onApply: () => renderFlipTable()
     });
 
-    const membersSelect = document.getElementById('filter-members');
-    if (membersSelect) {
-        membersSelect.value = state.membersFilter;
-        membersSelect.addEventListener('change', () => {
-            setMembersFilter(membersSelect.value);
-            renderFlipTable();
-        });
-    }
+    bindPoolSelect({
+        select: document.getElementById('filter-pool'),
+        hint: document.getElementById('pool-hint')
+    });
+
+    // The Plan tab offers the same selector, so the pool can change while this
+    // table is off screen. Rebuilding a hidden table is wasted work, but leaving
+    // its cached rows in place would show the old pool on the way back in.
+    window.addEventListener(POOL_CHANGED, () => {
+        if (state.activeTab === 'flipper') renderFlipTable();
+        else resetFlipTable();
+    });
 }
 
 /** Drop cached DOM so the next render rebuilds from scratch. */

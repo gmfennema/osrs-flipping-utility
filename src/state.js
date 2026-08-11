@@ -21,6 +21,22 @@ function writePref(key, value) {
     } catch { /* private mode — preferences just will not persist */ }
 }
 
+/**
+ * Which slice of the game the Flip Finder and the 48h Plan work over.
+ *
+ * `all` is the default. The F2P-only default was a hangover from the research
+ * pool the edge model was fitted on, and it quietly hid four fifths of the
+ * tradeable market from anyone who never found the filter.
+ */
+export const ITEM_POOLS = ['all', 'f2p', 'p2p'];
+
+function readItemPool() {
+    // `membersFilter` is the pre-rename key: honour a choice saved under it so
+    // an existing visitor is not yanked into a different pool by the upgrade.
+    const saved = readPref('itemPool', null) ?? readPref('membersFilter', null);
+    return ITEM_POOLS.includes(saved) ? saved : 'all';
+}
+
 export const state = {
     // Selection
     currentItemId: parseInt(readPref('currentItemId', '888'), 10) || 888,
@@ -38,7 +54,7 @@ export const state = {
     // Flip table
     sortColumn: readPref('sortColumn', 'cycleProfit'),
     sortDirection: readPref('sortDirection', 'desc'),
-    membersFilter: readPref('membersFilter', 'f2p'),
+    itemPool: readItemPool(),
 
     // Quest tree
     questSelection: readPref('questSelection', '') || null,
@@ -104,9 +120,12 @@ export function setSort(column, direction) {
     writePref('sortDirection', direction);
 }
 
-export function setMembersFilter(value) {
-    state.membersFilter = value;
-    writePref('membersFilter', value);
+/** Ignores an unknown pool rather than filtering the table down to nothing. */
+export function setItemPool(value) {
+    if (!ITEM_POOLS.includes(value)) return state.itemPool;
+    state.itemPool = value;
+    writePref('itemPool', value);
+    return value;
 }
 
 export function setQuestSelection(name) {

@@ -14,6 +14,12 @@
  * simultaneous positions, which is the real reason the strategy works: no
  * single F2P item can absorb 9m, so breadth is not diversification garnish, it
  * is the mechanism.
+ *
+ * That last argument is pool-relative, and the app is no longer F2P-only. A
+ * members item can absorb a 9m order without blinking, so on a members-inclusive
+ * pool it is `maxFlowShare` and `maxBankrollShare` that force the basket rather
+ * than the buy limits. The knapsack is unchanged; only the ceiling that binds it
+ * is. See docs/EDGE.md, "Applying this to members items".
  */
 
 import { netSellPrice } from './pricing.js';
