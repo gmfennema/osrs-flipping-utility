@@ -2,8 +2,9 @@
  * Candidate shortlisting from bulk data.
  *
  * The edge model needs per-item 6h history, which costs one request each. The
- * whole F2P pool is ~820 items and that would be rude to the wiki and slow for
- * you, so the bulk endpoints (`/latest`, `/24h`) narrow it first.
+ * F2P pool alone is ~820 items and the whole game is ~4,200, so measuring
+ * everything would be rude to the wiki and slow for you; the bulk endpoints
+ * (`/latest`, `/24h`) narrow it first.
  *
  * The shortlist is deliberately over-inclusive. It exists to bound the request
  * count, not to make judgements — every real decision happens later against
@@ -26,6 +27,18 @@ export const SHORTLIST_CONFIG = {
     bySpread: 50,
     /** Candidates taken by raw traded volume, so staples are never missed. */
     byVolume: 40,
+    /**
+     * Both counts above were sized against the F2P pool. A members-inclusive
+     * pool is about five times larger, so holding the funnel at 90 slots would
+     * mean the plan sees a *smaller* share of a bigger market — the two rankings
+     * would be dominated by the same handful of extremes and the plan would have
+     * fewer distinct items to spread 40 positions across.
+     *
+     * The cost of widening is exactly one request per extra candidate, so this
+     * is deliberately a modest bump rather than proportional: 135 requests at a
+     * concurrency of four, not 450.
+     */
+    largePoolFactor: 1.5,
     /**
      * 24h volume floor. The real gate is 20k units per 48h measured from
      * history; 8k over 24h is a deliberately loose proxy for it, set low
@@ -50,7 +63,7 @@ export function shortlist({
     latestPrices,
     volume24h,
     capital,
-    pool = 'f2p',
+    pool = 'all',
     config = SHORTLIST_CONFIG,
     edgeConfig = EDGE_CONFIG
 }) {
@@ -76,10 +89,11 @@ export function shortlist({
         viable.push({ item, quote, apparentSpread: roi, volume });
     }
 
+    const widen = pool === 'f2p' ? 1 : (config.largePoolFactor ?? 1);
     const bySpread = [...viable].sort((a, b) => b.apparentSpread - a.apparentSpread)
-        .slice(0, config.bySpread);
+        .slice(0, Math.round(config.bySpread * widen));
     const byVolume = [...viable].sort((a, b) => b.volume - a.volume)
-        .slice(0, config.byVolume);
+        .slice(0, Math.round(config.byVolume * widen));
 
     const seen = new Set();
     const merged = [];

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { computeEdge, edgeVetoes, EDGE_CONFIG } from '../src/calc/edge.js';
 import { buildPlan, capacityFor, orderPair, currentBuyWindow, BUY_WINDOWS } from '../src/calc/plan.js';
-import { shortlist } from '../src/calc/shortlist.js';
+import { shortlist, SHORTLIST_CONFIG } from '../src/calc/shortlist.js';
 
 function series(spec, startTs = 1_700_000_000) {
     return spec.map((s, i) => ({
@@ -270,6 +270,16 @@ describe('shortlist', () => {
         expect(run('p2p')).toContain('Members item');
     });
 
+    it('spans both halves of the game for the all pool', () => {
+        expect(run('all')).toEqual(expect.arrayContaining(['Liquid f2p', 'Members item']));
+    });
+
+    it('defaults to the whole game rather than the f2p pool', () => {
+        const names = shortlist({ items, latestPrices, volume24h, capital: 9_000_000 })
+            .map((r) => r.item.name);
+        expect(names).toContain('Members item');
+    });
+
     it('excludes items with no meaningful volume', () => {
         expect(run('f2p')).not.toContain('Too thin');
     });
@@ -281,5 +291,45 @@ describe('shortlist', () => {
     it('returns each item at most once despite merging two rankings', () => {
         const names = run('all');
         expect(new Set(names).size).toBe(names.length);
+    });
+
+    describe('funnel width', () => {
+        /*
+         * A pool of 300 viable items where the spread ranking and the volume
+         * ranking are exact opposites, so the two buckets never overlap and the
+         * result size is precisely the sum of the two caps.
+         */
+        const many = (members) => {
+            const rows = Array.from({ length: 300 }, (_, i) =>
+                item({ id: 1000 + i, name: `Item ${i}`, members }));
+            const latest = {};
+            const volumes = {};
+            rows.forEach((row, i) => {
+                latest[row.id] = { high: 100 + i * 100, low: 100, highTime: 1, lowTime: 1 };
+                const side = 150_000 - i * 100;
+                volumes[row.id] = { highPriceVolume: side, lowPriceVolume: side };
+            });
+            return { rows, latest, volumes };
+        };
+
+        const take = (pool, members) => {
+            const { rows, latest, volumes } = many(members);
+            return shortlist({
+                items: rows, latestPrices: latest, volume24h: volumes, capital: 9_000_000, pool
+            }).length;
+        };
+
+        it('keeps the F2P funnel exactly as it was tuned', () => {
+            expect(take('f2p', false)).toBe(SHORTLIST_CONFIG.bySpread + SHORTLIST_CONFIG.byVolume);
+        });
+
+        it('widens it for the larger members-inclusive pools', () => {
+            const widened = Math.round(SHORTLIST_CONFIG.bySpread * SHORTLIST_CONFIG.largePoolFactor)
+                + Math.round(SHORTLIST_CONFIG.byVolume * SHORTLIST_CONFIG.largePoolFactor);
+            expect(take('all', true)).toBe(widened);
+            expect(take('p2p', true)).toBe(widened);
+            // Still a hard ceiling: the shortlist costs one request per candidate.
+            expect(widened).toBeLessThanOrEqual(140);
+        });
     });
 });

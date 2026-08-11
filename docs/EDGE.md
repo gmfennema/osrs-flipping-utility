@@ -10,7 +10,8 @@ are findable.
   least 2,000 units of 24h volume — 304 items.
 - **Data**: 91 days of 6h timeseries buckets per item (`/timeseries?timestep=6h`),
   plus 365 days of daily bars for the trend and seasonality work.
-- **Target profile**: 9m bankroll, F2P only, 24–48h holding period.
+- **Target profile**: 9m bankroll, F2P only, 24–48h holding period. The app is no
+  longer limited to that pool — see [Applying this to members items](#applying-this-to-members-items).
 - **Validation**: parameters chosen on the first half of the window, reported on
   the held-out second half. Every headline figure is quoted under two fill
   models, one of which is deliberately punitive.
@@ -231,6 +232,47 @@ Held-out second half, 9m bankroll, 48h holds:
 
 Holding longer keeps helping (24h: 2.62%, 48h: 4.88%, 72h: 6.22% under harsh
 fill), so 48h is a choice about attention, not the optimum.
+
+## Applying this to members items
+
+The measurements above are all F2P. The app defaults to the whole game, so it is
+worth being explicit about which findings are properties of the *market* and
+which are properties of the *pool they were measured in*.
+
+Carries over unchanged — these are mechanical or were measured on effects that
+have nothing to do with membership:
+
+- **The 50gp tax cliff** (finding 1). A rule of the GE, identical everywhere.
+  The consequence is not identical, though: F2P has a lot of sub-50gp staples and
+  the members pool has far more genuinely expensive items, so a members-inclusive
+  plan leans harder on clearing 2% gross than on the exemption.
+- **The liquidity gate** (finding 2), the **volatility band** and the
+  **stability taper** (finding 5), and the **fill-rate asymmetry** (finding 6).
+  All three are gates on measured per-item history, and the history is fetched
+  the same way for a members item as for a free one.
+- **Time of day** (finding 7). It is a fact about when players are logged in.
+- **Mean reversion** and the **jumpiness flag** (findings 4 and 8) are computed
+  per item from its own 30d and 365d behaviour, so they travel.
+
+Does *not* carry over, and is now stated pool-relative in the code:
+
+- **"No single F2P item can absorb 9m"** (finding 3). This was the load-bearing
+  argument for breadth, and it is a fact about F2P buy limits, not about the
+  game. Plenty of members items will happily take a 9m position in one order.
+  Breadth is still enforced — `maxFlowShare` caps a position at 10% of what
+  actually trades on the thin side and `maxBankrollShare` caps it at 15% of the
+  bankroll — but on a members pool those caps are doing the work that F2P buy
+  limits used to do for free. The knapsack is still the right shape; the reason
+  it is has changed.
+- **The shortlist width.** The funnel was 90 candidates against an ~820-item
+  pool. The whole game is ~4,200 items, so the non-F2P pools widen it by
+  `largePoolFactor` (135 candidates, one request each). This bounds request
+  count, not quality — everything downstream is still decided against measured
+  history.
+- **The headline return figures.** 5.07% harsh / 9.05% base per 48h cycle were
+  produced by this code over the F2P universe. Nothing here claims the same
+  numbers on a members-inclusive pool, and no members backtest has been run.
+  Treat the ranking as ported, and the return figures as F2P-only.
 
 ## Caveats worth keeping in mind
 

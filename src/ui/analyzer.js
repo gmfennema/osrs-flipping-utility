@@ -90,6 +90,14 @@ export function renderItemSnapshot(item, { resetPending = true } = {}) {
     el('item-icon').src = iconUrl(item.icon);
     el('item-icon').alt = item.name;
 
+    // The search box and the Flip Finder both reach members items, and nothing
+    // else on this screen says whether you can place the order at all.
+    const poolNote = el('item-pool-note');
+    if (poolNote) {
+        poolNote.textContent = item.members ? 'Members item' : 'Free-to-play item';
+        poolNote.dataset.members = String(Boolean(item.members));
+    }
+
     const flip = buildFlip({
         item,
         quote: state.latestPrices[item.id],

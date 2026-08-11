@@ -3,8 +3,8 @@
  *
  * This is the opposite of a sortable table. A table asks you to pick; a plan
  * tells you what to buy, how many, at what bid, and what ask to set — because
- * the whole finding of the analysis is that no single F2P item can absorb a 9m
- * bankroll, so the answer is always a basket, never a row.
+ * the whole finding of the analysis is that very few items can absorb a whole
+ * bankroll on their own, so the answer is always a basket, never a row.
  */
 
 import { state, setCurrentItem } from '../state.js';
@@ -13,6 +13,7 @@ import { shortlist } from '../calc/shortlist.js';
 import { computeEdge, EDGE_CONFIG } from '../calc/edge.js';
 import { buildPlan, currentBuyWindow, BUY_WINDOWS, LIMIT_WINDOW_HOURS } from '../calc/plan.js';
 import { bindCapitalInput } from './capital.js';
+import { bindPoolSelect, POOL_CHANGED, POOL_LABELS } from './pool.js';
 import { gp, gpShort, pct, iconUrl, scoreColor } from './format.js';
 
 /** The in-flight build, if any: `{ controller, promise }`. */
@@ -51,7 +52,7 @@ function windowBanner() {
     };
 }
 
-function renderSummary(plan, evaluated) {
+function renderSummary(plan, evaluated, pool) {
     const el = document.getElementById('plan-summary');
     if (!el) return;
     const { totals } = plan;
@@ -63,7 +64,7 @@ function renderSummary(plan, evaluated) {
             <div class="plan-metric">
                 <span class="plan-metric-label">Positions</span>
                 <span class="plan-metric-value">${totals.positionCount}</span>
-                <span class="plan-metric-hint">of ${evaluated} evaluated</span>
+                <span class="plan-metric-hint">of ${evaluated} evaluated · ${POOL_LABELS[pool] ?? pool}</span>
             </div>
             <div class="plan-metric">
                 <span class="plan-metric-label">Capital deployed</span>
@@ -89,6 +90,9 @@ function positionRow(position) {
     const fill = fillProbability === null ? '—' : `${Math.round(fillProbability * 100)}%`;
 
     const flags = [];
+    // First, because it is the only flag that decides whether you can place the
+    // order at all rather than how good it is.
+    if (item.members) flags.push('<span class="plan-flag" title="Members item — you need a membership to trade this">members</span>');
     if (edge.bid < 50) flags.push('<span class="plan-flag plan-flag-good" title="Under 50gp, so the GE takes no tax at all — a single tick is pure profit">tax-free</span>');
     if (orders.needsMove) flags.push(`<span class="plan-flag plan-flag-warn" title="The current ask does not clear the 2% tax. This needs the price to rise about ${orders.movePct.toFixed(1)}% before it pays.">needs +${orders.movePct.toFixed(1)}%</span>`);
     if (edge.pctRank <= 0.25) flags.push('<span class="plan-flag plan-flag-good" title="Trading in the bottom quarter of its 30-day range">near 30d low</span>');
@@ -176,7 +180,7 @@ function renderRejected(plan) {
 
 function renderCached() {
     const measured = lastPlan.measured;
-    renderSummary(lastPlan.plan, measured);
+    renderSummary(lastPlan.plan, measured, lastPlan.pool);
     renderPositions(lastPlan.plan);
     renderRejected(lastPlan.plan);
     setStatus(`Plan built from ${measured} of ${lastPlan.evaluated} candidates`
@@ -186,19 +190,22 @@ function renderCached() {
 
 async function build(signal) {
     const capital = state.capital;
+    const pool = state.itemPool;
 
     const candidates = shortlist({
         items: state.itemMapping,
         latestPrices: state.latestPrices,
         volume24h: state.volume24h,
         capital,
-        pool: state.membersFilter
+        pool
     });
 
     if (!candidates.length) {
         setStatus('No items passed the initial screen. Check that prices have loaded.');
         renderNotice('No items passed the initial screen. Either prices have not loaded yet, or your bankroll'
-            + ' is too small to take a worthwhile position in anything in this pool.');
+            + ' is too small to take a worthwhile position in anything in this pool.'
+            + (pool === 'all' ? '' : ' Widening <strong>Item pool</strong> to all items gives the screen'
+                + ' the rest of the market to work with.'));
         return;
     }
 
@@ -231,13 +238,14 @@ async function build(signal) {
     const plan = buildPlan({ candidates: withEdges, capital });
     lastPlan = {
         plan,
+        pool,
         evaluated: candidates.length,
         measured: measured.length,
         failed: failed.length,
         builtAt: Date.now()
     };
 
-    renderSummary(plan, measured.length);
+    renderSummary(plan, measured.length, pool);
     renderPositions(plan);
     renderRejected(plan);
 
@@ -261,6 +269,11 @@ export async function renderPlan({ force = false } = {}) {
         activeRun.controller.abort();
         try { await activeRun.promise; } catch { /* superseded */ }
     }
+
+    // A plan is only ever valid for the pool it was drawn from. The pool change
+    // itself invalidates it; this is the belt to that braces, so no path can
+    // serve an F2P basket as though it were the whole market.
+    if (lastPlan && lastPlan.pool !== state.itemPool) lastPlan = null;
 
     if (lastPlan && !force) {
         renderCached();
@@ -303,8 +316,20 @@ export function initPlanner() {
         emptyHint: 'Required — the plan is sized to your bankroll'
     });
 
+    bindPoolSelect({
+        select: document.getElementById('plan-pool'),
+        hint: document.getElementById('plan-pool-hint')
+    });
+
     document.getElementById('plan-refresh')?.addEventListener('click', () => renderPlan({ force: true }));
     window.addEventListener('osrs:capital-changed', () => {
+        invalidatePlan();
+        if (state.activeTab === 'planner') renderPlan({ force: true });
+    });
+    // A different pool is a different shortlist, so the whole plan has to be
+    // measured again — the cached one is about a market you are no longer asking
+    // about.
+    window.addEventListener(POOL_CHANGED, () => {
         invalidatePlan();
         if (state.activeTab === 'planner') renderPlan({ force: true });
     });
